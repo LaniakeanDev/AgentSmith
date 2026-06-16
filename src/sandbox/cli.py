@@ -23,10 +23,16 @@ class SandboxCLI:
         result = launch_sandbox(config, code)
         stdout = result["stdout"]
         if stdout:
-            print(f'stdout: {stdout}')
-        stderr = result["stderr"]
-        if stderr:
-            print(f'stderr: {stderr}')
+            stdout_data = json.loads(stdout)
+            if "success" not in stdout_data:
+                print("stdout data invalid")
+                return None
+            if stdout_data["success"]:
+                print("Your result:")
+                print("-" * 12)
+                print(stdout_data["output"])
+        else:
+            print(f'stderr: {result["stderr"]}')
 
 
 def main():
