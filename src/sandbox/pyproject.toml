@@ -1,19 +1,11 @@
 [project]
 name = "agent_smith_sandbox"
-requires-python = ">=3.13"
 version = "0.1.0"
+requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.13.4",
 ]
 
 [tool.uv]
-package = true
+package = false
 link-mode = "copy"
-
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-
-[tool.setuptools]
-py-modules = []
-packages = ["sandbox"]
