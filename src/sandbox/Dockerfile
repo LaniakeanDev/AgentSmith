@@ -1,19 +1,21 @@
 FROM python:3.13-slim
 
 ENV PYTHONUNBUFFERED=1
-ENV VIRTUAL_ENV=/sandbox/.venv
+ENV VIRTUAL_ENV=/app/.venv
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 RUN pip install uv
 
-WORKDIR /sandbox
+WORKDIR /app
 
 COPY pyproject.toml uv.lock* ./
 
+# meaning of --frozen:
 # no changes are made to the lock file during the sync process
 # uv.lock already in sync with pyproject.toml
-RUN uv sync --frozen
+RUN mkdir sandbox && \
+    uv sync --frozen
 
-COPY . .
+COPY . ./sandbox
 
-CMD ["uv", "run", "python", "sandbox_worker.py"]
+CMD ["uv", "run", "python", "-m", "sandbox"]

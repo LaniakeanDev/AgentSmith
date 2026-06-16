@@ -1,5 +1,3 @@
-
-
 safe_builtins = {
     'abs': abs, 'all': all, 'any': any, 'bool': bool,
     'dict': dict, 'enumerate': enumerate, 'float': float,

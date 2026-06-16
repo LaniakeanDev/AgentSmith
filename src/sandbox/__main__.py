@@ -1,6 +1,6 @@
 import sys
-from config import SandboxConfig, ExecutionResult
-from constants import safe_builtins
+from .config import SandboxConfig, ExecutionResult
+from .constants import safe_builtins
 import resource
 import io
 import json

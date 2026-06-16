@@ -8,4 +8,12 @@ dependencies = [
 
 [tool.uv]
 package = true
-link-mode = "copy" 
+link-mode = "copy"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = []
+packages = ["sandbox"]

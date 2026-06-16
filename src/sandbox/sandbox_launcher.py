@@ -16,7 +16,7 @@ def launch_sandbox(config: SandboxConfig, code: str):
         "--cpus=1",
         "-i",
         "sandbox-image",
-        "python", "sandbox_worker.py"
+        "uv", "run", "python", "-m", "sandbox"
     ]
     result = subprocess.run(
         docker_cmd,
