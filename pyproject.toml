@@ -1,0 +1,15 @@
+[project]
+name = "agent_smith"
+requires-python = ">=3.13"
+version = "0.1.0"
+dependencies = [
+    "pydantic>=2.13.4",
+    "fire",
+]
+
+[project.scripts]
+sandbox = "sandbox.cli:main"
+
+[tool.uv]
+package = true
+link-mode = "copy" 
