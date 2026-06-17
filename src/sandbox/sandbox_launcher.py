@@ -12,7 +12,6 @@ def launch_sandbox(config: SandboxConfig, code: str):
         "docker", "run",
         "--rm",
         "--network=none",
-        "--read-only",
         "--cap-drop=ALL",
         "--security-opt=no-new-privileges",
         "--pids-limit=64",
