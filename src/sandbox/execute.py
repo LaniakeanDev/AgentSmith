@@ -4,6 +4,13 @@ from .constants import safe_builtins
 import resource
 import io
 import json
+import os
+
+
+class FinalAnswer(BaseException):
+    def __init__(self, answer):
+        super().__init__()
+        self.answer = answer
 
 
 def restricted_import_factory(config: SandboxConfig):
@@ -26,8 +33,26 @@ def restricted_import_factory(config: SandboxConfig):
     return restricted_import
 
 
+def restricted_open_factory(config):
+    allowed = [
+        os.path.realpath(p)
+        for p in config.allowed_directories
+    ]
+
+    def restricted_open(path, *args, **kwargs):
+        real = os.path.realpath(path)
+        for root in allowed:
+            if (real == root
+                    or real.startswith(root + os.sep)):
+                return open(real, *args, **kwargs)
+        raise PermissionError(f"Unauthorized path: {path}")
+
+    return restricted_open
+
+
 def build_globals(config: SandboxConfig):
     builtins = safe_builtins.copy()
+    builtins["open"] = restricted_open_factory(config)
     builtins['__import__'] = restricted_import_factory(config)
     return {
         '__builtins__': builtins,
@@ -52,27 +77,30 @@ def execute(code: str, config: SandboxConfig) -> ExecutionResult:
             success=True,
             output=output
         )
+    except SystemExit:
+        raise
+    except KeyboardInterrupt:
+        raise
+    except PermissionError as e:
+        return ExecutionResult(
+            success=False,
+            output="",
+            error=f"Sandbox caught PermissionError: {str(e)}"
+        )
     except MemoryError as e:
         return ExecutionResult(
             success=False,
             output="",
             error=f"Memory limit exceeded ({config.max_memory_mb}MB): {str(e)}"
         )
-    except RuntimeError as e:
-        msg = str(e)
-
-        if msg.startswith("FINAL_ANSWER::"):
-            return ExecutionResult(
-                success=True,
-                output="",
-                final_answer=msg.replace("FINAL_ANSWER::", "")
-            )
-
+    except FinalAnswer as e:
+        f_ans = e.answer
         return ExecutionResult(
-            success=False,
+            success=True,
             output="",
-            error=msg
+            final_answer=f_ans
         )
+
     except Exception as e:
         return ExecutionResult(
             success=False,
@@ -84,7 +112,7 @@ def execute(code: str, config: SandboxConfig) -> ExecutionResult:
 
 
 def handle_final_answer(answer: str):
-    raise RuntimeError(f"FINAL_ANSWER::{answer}")
+    raise FinalAnswer(answer)
 
 
 if __name__ == '__main__':
