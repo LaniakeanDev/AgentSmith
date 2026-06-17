@@ -4,7 +4,7 @@ from .config import SandboxConfig
 
 
 def launch_sandbox(config: SandboxConfig, code: str):
-    payload = {
+    inputs = {
         "config": config.model_dump(),
         "code": code
     }
@@ -18,14 +18,39 @@ def launch_sandbox(config: SandboxConfig, code: str):
         "sandbox-image",
         "uv", "run", "python", "-m", "sandbox"
     ]
-    result = subprocess.run(
-        docker_cmd,
-        input=json.dumps(payload),
-        text=True,
-        capture_output=True,
-        timeout=config.max_execution_time_seconds + 5
-    )
-    return {
-        "stdout": result.stdout,
-        "stderr": result.stderr
-    }
+    try:
+        result = subprocess.run(
+            docker_cmd,
+            input=json.dumps(inputs),
+            text=True,
+            capture_output=True,
+            timeout=config.max_execution_time_seconds + 5
+        )
+        try:
+            # The container should output JSON
+            output_data = json.loads(result.stdout)
+            return {
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "parsed_output": output_data
+            }
+        except json.JSONDecodeError:
+            # If not JSON, return as is
+            return {
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "parsed_output": None
+            }
+    except subprocess.TimeoutExpired:
+        return {
+            "stdout": "",
+            "stderr": f"Sandbox container execution timed out after \
+                {config.max_execution_time_seconds + 5} seconds",
+            "parsed_output": None
+        }
+    except Exception as e:
+        return {
+            "stdout": "",
+            "stderr": f"Sandbox execution failed: {str(e)}",
+            "parsed_output": None
+        }
