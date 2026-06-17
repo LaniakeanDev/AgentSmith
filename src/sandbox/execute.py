@@ -52,6 +52,12 @@ def execute(code: str, config: SandboxConfig) -> ExecutionResult:
             success=True,
             output=output
         )
+    except MemoryError as e:
+        return ExecutionResult(
+            success=False,
+            output="",
+            error=f"Memory limit exceeded ({config.max_memory_mb}MB): {str(e)}"
+        )
     except RuntimeError as e:
         msg = str(e)
 

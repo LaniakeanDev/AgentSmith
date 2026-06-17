@@ -98,7 +98,7 @@ if __name__ == '__main__':
             input=input_data,
             text=True,
             capture_output=True,
-            timeout=config.max_execution_time_seconds + 2
+            timeout=config.max_execution_time_seconds
         )
         if result.stdout:
             try:
