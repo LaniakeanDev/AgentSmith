@@ -5,10 +5,12 @@ version = "0.1.0"
 dependencies = [
     "pydantic>=2.13.4",
     "fire",
+    "mcp[cli]>=1.28.0",
 ]
 
 [project.scripts]
 sandbox = "sandbox.cli:main"
+sandbox_mbpp = "sandbox_mbpp.cli:main"
 
 [tool.uv]
 package = true

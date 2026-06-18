@@ -1,6 +1,6 @@
 
 
-install:
+install_docker_sandbox:
 	cd src/sandbox && \
 	uv lock && \
 	cd ../.. && \

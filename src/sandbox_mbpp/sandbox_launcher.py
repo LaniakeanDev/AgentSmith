@@ -8,26 +8,13 @@ def launch_sandbox(config: SandboxConfig, code: str):
         "config": config.model_dump(),
         "code": code
     }
-    docker_cmd = [
-        "docker", "run",
-        "--rm",
-        # "--network=none", removed because needs HTTP access
-        "--cap-drop=ALL",
-        "--security-opt=no-new-privileges",
-        "--pids-limit=64",
-        f"--memory={config.max_memory_mb}m",
-        "--cpus=1",
-        "-i",
-        "sandbox-image",
-        "uv", "run", "python", "-m", "sandbox"
-    ]
     try:
         result = subprocess.run(
-            docker_cmd,
+            ["python", "-m", "sandbox"],
             input=json.dumps(inputs),
             text=True,
             capture_output=True,
-            timeout=config.max_execution_time_seconds + 5
+            timeout=config.max_execution_time_seconds
         )
         try:
             # The container should output JSON
@@ -47,8 +34,8 @@ def launch_sandbox(config: SandboxConfig, code: str):
     except subprocess.TimeoutExpired:
         return {
             "stdout": "",
-            "stderr": f"Sandbox container execution timed out after \
-                {config.max_execution_time_seconds + 5} seconds",
+            "stderr": f"Sandbox execution timed out after \
+                {config.max_execution_time_seconds} seconds",
             "parsed_output": None
         }
     except Exception as e:
