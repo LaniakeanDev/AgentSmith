@@ -1,3 +1,4 @@
+import asyncio
 import os
 from .config import SandboxConfig, ExecutionResult
 from .mcp_client import MCPClient
@@ -23,34 +24,32 @@ def timeout_handler(signum, frame):
 
 
 class Sandbox:
-    def __init__(self, config: SandboxConfig) -> None:
+    def __init__(self, config: SandboxConfig, server_path: str) -> None:
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
         self.config = config
+        self.server_path = server_path
         self.mcp_client = MCPClient()
         self.exec_count: int = 0
+
+    def configure(self):
+        self.loop.run_until_complete(
+            self.mcp_client.connect_to_server(self.server_path)
+        )
+        self.restricted_globals = self.loop.run_until_complete(
+            self.build_globals()
+        )
 
     def execute(self, code: str) -> ExecutionResult:
         """Execute LLM-generated code in restricted environment"""
         self.exec_count += 1
-        # result = subprocess.run(
-        #     ["python3.13", "execute.py"],
-        #     input=json.dumps({
-        #         "config": self.config.model_dump(),
-        #         "code": code
-        #     }),
-        #     text=True,
-        #     capture_output=True,
-        #     timeout=self.config.max_execution_time_seconds
-        # )
-        # if result.success:
-        #     pass  # to be implemented later
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(self.config.max_execution_time_seconds)
         self.set_mem_limit()
-        restricted_globals = self.build_globals()
         reg_stdout = sys.stdout
         sys.stdout = buffer = io.StringIO()
         try:
-            exec(code, restricted_globals)
+            exec(code, self.restricted_globals)
             output = buffer.getvalue()
             return ExecutionResult(
                 success=True,
@@ -129,14 +128,17 @@ class Sandbox:
 
         return restricted_open
 
-    def build_globals(self):
+    async def build_globals(self):
         builtins = safe_builtins.copy()
         builtins["open"] = self.restricted_open_factory()
         builtins['__import__'] = self.restricted_import_factory()
-        return {
+        tool_wrappers = await self.mcp_client.build_tool_wrappers()
+        restricted_globals = {
             '__builtins__': builtins,
-            'final_answer': self.handle_final_answer
+            'final_answer': self.handle_final_answer,
+            **tool_wrappers
         }
+        return restricted_globals
 
     def set_mem_limit(self):
         max_mem_bytes = self.config.max_memory_mb * 1024 * 1024

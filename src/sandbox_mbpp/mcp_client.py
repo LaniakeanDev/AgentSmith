@@ -5,49 +5,55 @@ from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
-# from dotenv import load_dotenv
-
-# load_dotenv()  # load environment variables from .env
-
 
 class MCPClient:
     def __init__(self):
-        # Initialize session and client objects
         self.session: Optional[ClientSession] = None
-        self.exit_stack = AsyncExitStack()
+        self.exit_stack: Optional[AsyncExitStack] = None
         self.tools = None
+        self.connected = False
+        self.read_stream = None
+        self.write_stream = None
 
-    async def connect_to_server(self, server_script_path: str):
+    async def connect_to_server(self, server_path: str):
         """Connect to an MCP server
 
         Args:
             server_script_path: Path to the server script
         """
+        if self.connected:
+            return None
+        self.exit_stack = AsyncExitStack()
         server_params = StdioServerParameters(
             command="python",
-            args=[server_script_path],
+            args=[server_path],
             env=None
         )
-        stdio_transport = await \
-            self.exit_stack.enter_async_context(stdio_client(server_params))
-        self.stdio, self.write = stdio_transport
-        self.session = await \
-            self.exit_stack.enter_async_context(ClientSession(
-                self.stdio, self.write))
+        stdio_transport = await self.exit_stack.enter_async_context(
+            stdio_client(server_params)
+        )
+        self.read_stream, self.write_stream = stdio_transport
+        print("35")
+
+        # Enter the ClientSession context manually
+        self.session = await self.exit_stack.enter_async_context(
+            ClientSession(self.read_stream, self.write_stream)
+        )
         await self.session.initialize()
-        # List available tools
         response = await self.session.list_tools()
         self.tools = response.tools
-        print("\nConnected to server with tools:\
-              ", [tool.name for tool in self.tools])
+        print("\nConnected to server with tools:",
+              [tool.name for tool in self.tools])
+        self.connected = True
 
     async def get_tools(self) -> None:
         """Discover tools from MCP server"""
         response = await self.session.list_tools()
         self.tools = response.tools
 
-    def build_tool_wrappers(self) -> dict:
+    async def build_tool_wrappers(self) -> dict:
         """Discover tools from MCP server and create callable wrappers."""
+        await self.get_tools()
         wrappers = {}
         for tool in self.tools:
             # Capture tool.name in closure to avoid late binding issue

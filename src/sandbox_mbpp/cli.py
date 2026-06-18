@@ -35,7 +35,10 @@ class SandboxCLI:
         else:
             print(f'stderr: {result["stderr"]}')
 
-    def execute_without_subprocess(self, code, config_file=None):
+    def execute_without_subprocess(
+            self, code,
+            config_file=None,
+            server_path='src/fastmcp_server.py'):
         """Execute code in the sandbox"""
         if config_file is None:
             config = SandboxConfig()
@@ -47,14 +50,15 @@ class SandboxCLI:
             except Exception as e:
                 print(f"WARNING: {e}")
                 config = SandboxConfig()
-        sandbox = Sandbox(config)
+        sandbox = Sandbox(config, server_path)
+        sandbox.configure()
         result = sandbox.execute(code)
         if result.success:
             print("Your result:")
             print("-" * 12)
             print(result.output)
         else:
-            print(f'stderr: {result["stderr"]}')
+            print(f'error: {result.error}')
 
 
 def main():
