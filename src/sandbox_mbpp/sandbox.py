@@ -39,6 +39,7 @@ class Sandbox:
         self.restricted_globals = self.loop.run_until_complete(
             self.build_globals()
         )
+        print("Sandbox configuration successful")
 
     def execute(self, code: str) -> ExecutionResult:
         """Execute LLM-generated code in restricted environment"""
@@ -89,7 +90,7 @@ class Sandbox:
             return ExecutionResult(
                 success=False,
                 output="",
-                error=str(e)
+                error=f"{type(e).__name__}: {str(e)}"
             )
         finally:
             sys.stdout = reg_stdout

@@ -33,8 +33,6 @@ class MCPClient:
             stdio_client(server_params)
         )
         self.read_stream, self.write_stream = stdio_transport
-        print("35")
-
         # Enter the ClientSession context manually
         self.session = await self.exit_stack.enter_async_context(
             ClientSession(self.read_stream, self.write_stream)
