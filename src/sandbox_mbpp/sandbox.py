@@ -1,12 +1,13 @@
 import asyncio
-import os
 from .config import SandboxConfig, ExecutionResult
 from .mcp_client import MCPClient
-from .constants import safe_builtins
-import resource
 import io
 import sys
 import signal
+import subprocess
+import json
+import os
+from .constants import safe_builtins
 
 
 class TimeoutError(Exception):
@@ -42,6 +43,111 @@ class Sandbox:
         print("Sandbox configuration successful")
 
     def execute(self, code: str) -> ExecutionResult:
+        """Execute LLM-generated code in restricted environment"""
+        self.exec_count += 1
+        subprocess_inputs = {
+            "config": self.config.model_dump(),
+            "code": code
+        }
+        # self.set_mem_limit()
+        docker_cmd = [
+            "docker", "run",
+            "--rm",
+            # "--network=none", removed because needs HTTP access
+            "--cap-drop=ALL",
+            "--security-opt=no-new-privileges",
+            "--pids-limit=64",
+            f"--memory={self.config.max_memory_mb}m",
+            "--cpus=1",
+            "-i",
+            "sandbox-image",
+            "uv", "run", "python", "-m", "sandbox"
+        ]
+        try:
+            result = subprocess.run(
+                docker_cmd,
+                input=json.dumps(subprocess_inputs),
+                text=True,
+                capture_output=True,
+                timeout=self.config.max_execution_time_seconds
+            )
+            try:
+                output_data = json.loads(result.stdout)
+                if output_data["success"]:
+                    return ExecutionResult(
+                        success=True,
+                        output=output_data["output"]
+                    )
+                else:
+                    error = output_data["error"]
+                    return ExecutionResult(
+                        success=False,
+                        output="",
+                        error=f"[sandbox:74] Error during sandbox execution: \
+                                {error}"
+                    )
+            except json.JSONDecodeError:
+                return ExecutionResult(
+                    success=False,
+                    output=result.stdout,
+                    error="[sandbox:82] The sandbox output isn't parseable"
+                )
+        except subprocess.TimeoutExpired:
+            return ExecutionResult(
+                success=False,
+                output="",
+                error=f"[sandbox:87] Sandbox execution timed out after \
+                    {self.config.max_execution_time_seconds} seconds",
+            )
+        except Exception as e:
+            return ExecutionResult(
+                success=False,
+                output="",
+                error=f"[sandbox:94] {type(e).__name__}: {str(e)}",
+            )
+        # reg_stdout = sys.stdout
+        # sys.stdout = buffer = io.StringIO()
+        # try:
+        #     exec(code, self.restricted_globals)
+        #     output = buffer.getvalue()
+        #     return ExecutionResult(
+        #         success=True,
+        #         output=output
+        #     )
+        # except SystemExit:
+        #     raise
+        # except KeyboardInterrupt:
+        #     raise
+        # except PermissionError as e:
+        #     return ExecutionResult(
+        #         success=False,
+        #         output="",
+        #         error=f"Sandbox caught PermissionError: {str(e)}"
+        #     )
+        # except MemoryError as e:
+        #     return ExecutionResult(
+        #         success=False,
+        #         output="",
+        #         error=f"Memory limit exceeded (\
+        #             {self.config.max_memory_mb}MB): {str(e)}"
+        #     )
+        # except FinalAnswer as e:
+        #     f_ans = e.answer
+        #     return ExecutionResult(
+        #         success=True,
+        #         output="",
+        #         final_answer=f_ans
+        #     )
+        # except Exception as e:
+        #     return ExecutionResult(
+        #         success=False,
+        #         output="",
+        #         error=f"{type(e).__name__}: {str(e)}"
+        #     )
+        # finally:
+        #     sys.stdout = reg_stdout
+
+    def execute_old(self, code: str) -> ExecutionResult:
         """Execute LLM-generated code in restricted environment"""
         self.exec_count += 1
         signal.signal(signal.SIGALRM, timeout_handler)
@@ -141,18 +247,10 @@ class Sandbox:
         }
         return restricted_globals
 
-    def set_mem_limit(self):
-        max_mem_bytes = self.config.max_memory_mb * 1024 * 1024
-        resource.setrlimit(resource.RLIMIT_AS, (max_mem_bytes, max_mem_bytes))
+    # def set_mem_limit(self):
+    #     max_mem_bytes = self.config.max_memory_mb * 1024 * 1024
+    #     resource.setrlimit(
+    #           resource.RLIMIT_AS, (max_mem_bytes, max_mem_bytes))
 
     def handle_final_answer(self, answer: str):
         raise FinalAnswer(answer)
-
-
-# if __name__ == '__main__':
-#     inputs = json.loads(sys.stdin.read())
-#     config = SandboxConfig.model_validate(inputs["config"])
-#     code = inputs["code"]
-#     sandbox = Sandbox(config=config)
-#     result = sandbox.execute(code)
-#     print(result.model_dump_json())

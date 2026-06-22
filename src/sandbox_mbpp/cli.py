@@ -60,6 +60,32 @@ class SandboxCLI:
         else:
             print(f'error: {result.error}')
 
+    def execute2(
+            self, code,
+            config_file=None,
+            server_path='src/fastmcp_server.py'):
+        """Execute code in the sandbox"""
+        if config_file is None:
+            config = SandboxConfig()
+        else:
+            try:
+                with open(config_file, 'r') as f:
+                    data = json.loads(f.read())
+                    config = SandboxConfig.model_validate(data)
+            except Exception as e:
+                print(f"WARNING: {type(e).__name__}: {str(e)}")
+                print("Using default configuration")
+                config = SandboxConfig()
+        sandbox = Sandbox(config, server_path)
+        sandbox.configure()
+        result = sandbox.execute(code)
+        if result.success:
+            print("Your result:")
+            print("-" * 12)
+            print(result.output)
+        else:
+            print(f'error: {result.error}')
+
 
 def main():
     if len(sys.argv) == 1:
@@ -86,7 +112,8 @@ def main():
         print("=" * 50)
         cli = SandboxCLI()
         # cli.execute(code)
-        cli.execute_without_subprocess(code)
+        # cli.execute_without_subprocess(code)
+        cli.execute2(code)
     else:
         fire.Fire(SandboxCLI)
 

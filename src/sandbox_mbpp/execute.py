@@ -68,6 +68,52 @@ def execute(code: str, config: SandboxConfig) -> ExecutionResult:
     set_mem_limit(config)
     restricted_globals = build_globals(config)
     reg_stdout = sys.stdout
+    # capture untrusted code's output
+    sys.stdout = buffer = io.StringIO()
+    try:
+        exec(code, restricted_globals)
+        output = buffer.getvalue()
+        return ExecutionResult(
+            success=True,
+            output=output
+        )
+    except SystemExit:
+        raise
+    except KeyboardInterrupt:
+        raise
+    except PermissionError as e:
+        return ExecutionResult(
+            success=False,
+            output="",
+            error=f"Sandbox caught PermissionError: {str(e)}"
+        )
+    except MemoryError as e:
+        return ExecutionResult(
+            success=False,
+            output="",
+            error=f"Memory limit exceeded ({config.max_memory_mb}MB): {str(e)}"
+        )
+    except FinalAnswer as e:
+        f_ans = e.answer
+        return ExecutionResult(
+            success=True,
+            output="",
+            final_answer=f_ans
+        )
+    except Exception as e:
+        return ExecutionResult(
+            success=False,
+            output="",
+            error=f"{type(e).__name__}: {str(e)}"
+        )
+    finally:
+        sys.stdout = reg_stdout
+
+
+def execute_old(code: str, config: SandboxConfig) -> ExecutionResult:
+    set_mem_limit(config)
+    restricted_globals = build_globals(config)
+    reg_stdout = sys.stdout
     sys.stdout = buffer = io.StringIO()
     try:
         exec(code, restricted_globals)
