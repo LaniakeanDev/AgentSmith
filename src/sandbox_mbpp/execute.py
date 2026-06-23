@@ -70,6 +70,7 @@ def execute(code: str, config: SandboxConfig) -> ExecutionResult:
     reg_stdout = sys.stdout
     # capture untrusted code's output
     sys.stdout = buffer = io.StringIO()
+    output = "No output generated"
     try:
         exec(code, restricted_globals)
         output = buffer.getvalue()
@@ -84,26 +85,26 @@ def execute(code: str, config: SandboxConfig) -> ExecutionResult:
     except PermissionError as e:
         return ExecutionResult(
             success=False,
-            output="",
+            output=output,
             error=f"Sandbox caught PermissionError: {str(e)}"
         )
     except MemoryError as e:
         return ExecutionResult(
             success=False,
-            output="",
+            output=output,
             error=f"Memory limit exceeded ({config.max_memory_mb}MB): {str(e)}"
         )
     except FinalAnswer as e:
         f_ans = e.answer
         return ExecutionResult(
             success=True,
-            output="",
+            output=output,
             final_answer=f_ans
         )
     except Exception as e:
         return ExecutionResult(
             success=False,
-            output="",
+            output=output,
             error=f"{type(e).__name__}: {str(e)}"
         )
     finally:
@@ -130,7 +131,8 @@ def execute_old(code: str, config: SandboxConfig) -> ExecutionResult:
         return ExecutionResult(
             success=False,
             output="",
-            error=f"Sandbox caught PermissionError: {str(e)}"
+            error=f"Sandbox caught PermissionError: \
+                {type(e).__name__}: {str(e)}"
         )
     except MemoryError as e:
         return ExecutionResult(
@@ -145,12 +147,11 @@ def execute_old(code: str, config: SandboxConfig) -> ExecutionResult:
             output="",
             final_answer=f_ans
         )
-
     except Exception as e:
         return ExecutionResult(
             success=False,
             output="",
-            error=str(e)
+            error=f"{type(e).__name__}: {str(e)}"
         )
     finally:
         sys.stdout = reg_stdout

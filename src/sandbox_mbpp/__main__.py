@@ -54,35 +54,40 @@ if __name__ == '__main__':
         print(f"Caught unexpected Exception: {e}")
     try:
         result = execute(code=code, config=config)
-        if result.success:
-            output = result.output
+        if result.success and result.final_answer:
             print(json.dumps({
                 "success": True,
-                "output": output,
+                "final_answer": result.final_answer,
+                "output": result.output
+            }))
+        elif result.success:
+            print(json.dumps({
+                "success": True,
+                "output": result.output or "No output from execution",
                 "error": result.error or "No output from execution"
             }))
         else:
             print(json.dumps({
                 "success": False,
-                "output": "",
+                "output": result.output or "No output from execution",
                 "error": result.error or "No output from execution"
             }))
     except SystemExit as e:
         print(json.dumps({
             "success": False,
-            "output": "",
-            "error": f"{type(e).__name__}: {str(e)}"
+            "output": f"Script exited early with code {e.code}",
+            "error": f"Early SystemExit with code {str(e)}"
         }))
-    except KeyboardInterrupt as e:
+    except KeyboardInterrupt:
         print(json.dumps({
             "success": False,
-            "output": "",
-            "error": f"{type(e).__name__}: {str(e)}"
+            "output": result.output or "No output from execution",
+            "error": "User interrupted the execution"
         }))
     except Exception as e:
         print(json.dumps({
             "success": False,
-            "output": "",
+            "output": result.output or "No output from execution",
             "error": f"{type(e).__name__}: {str(e)}"
         }))
 

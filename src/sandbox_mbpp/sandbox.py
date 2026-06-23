@@ -60,8 +60,8 @@ class Sandbox:
             f"--memory={self.config.max_memory_mb}m",
             "--cpus=1",
             "-i",
-            "sandbox-image",
-            "uv", "run", "python", "-m", "sandbox"
+            "sandbox_mbpp-image",
+            "uv", "run", "python", "-m", "sandbox_mbpp"
         ]
         try:
             result = subprocess.run(
@@ -71,39 +71,63 @@ class Sandbox:
                 capture_output=True,
                 timeout=self.config.max_execution_time_seconds
             )
+            # import pprint
+            # pprint.pprint(result)
+            if not result.stdout:
+                return ExecutionResult(
+                        success=False,
+                        output="No output from execution",
+                        error="[sandbox:80] Empty result.stdout"
+                    )
             try:
                 output_data = json.loads(result.stdout)
-                if output_data["success"]:
+                if output_data["success"] and "final_answer" in output_data:
+                    # print("It is a success!")
+                    # import pprint
+                    # pprint.pprint(output_data)
                     return ExecutionResult(
                         success=True,
-                        output=output_data["output"]
+                        final_answer=output_data["final_answer"],
+                        output="No output from execution"
+                    )
+                elif output_data["success"]:
+                    return ExecutionResult(
+                        success=True,
+                        output=output_data["output"],
                     )
                 else:
                     error = output_data["error"]
                     return ExecutionResult(
                         success=False,
-                        output="",
-                        error=f"[sandbox:74] Error during sandbox execution: \
-                                {error}"
+                        output=output_data["output"] or ("No output from "
+                                                         "execution"),
+                        error=f"[sandbox:100] Error during sandbox execution:"
+                              f" {error}"
                     )
             except json.JSONDecodeError:
                 return ExecutionResult(
                     success=False,
                     output=result.stdout,
-                    error="[sandbox:82] The sandbox output isn't parseable"
+                    error="[sandbox:107] The sandbox output isn't parseable"
                 )
         except subprocess.TimeoutExpired:
             return ExecutionResult(
                 success=False,
-                output="",
-                error=f"[sandbox:87] Sandbox execution timed out after \
-                    {self.config.max_execution_time_seconds} seconds",
+                output="No output from execution",
+                error=f"[sandbox:112] Sandbox execution timed out after "
+                      f"{self.config.max_execution_time_seconds} seconds",
+            )
+        except KeyboardInterrupt:
+            return ExecutionResult(
+                success=False,
+                output="\nUser interrupted execution",
+                error="\nUser interrupted execution",
             )
         except Exception as e:
             return ExecutionResult(
                 success=False,
-                output="",
-                error=f"[sandbox:94] {type(e).__name__}: {str(e)}",
+                output="No output from execution",
+                error=f"[sandbox:119] {type(e).__name__}: {str(e)}",
             )
         # reg_stdout = sys.stdout
         # sys.stdout = buffer = io.StringIO()
