@@ -1,3 +1,4 @@
+.env
 .venv
 *.py[cod]
 *__pycache__*
