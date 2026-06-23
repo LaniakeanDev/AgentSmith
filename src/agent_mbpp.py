@@ -125,13 +125,14 @@ def solve_task(task: dict):
 {{{func_call}}} instead")\n    success = False\n"""
     test_code += f"""\nif success:\n    final_answer(\'\'\'{code}\'\'\')"""
     code += '\n\n' + test_code
-    print("\n\nafter generating the code:")
-    print(code)
+    # print("\n\nafter generating the code:")
+    # print(code)
     config = SandboxConfig()
     server_path = 'src/fastmcp_server.py'
     sandbox = Sandbox(config, server_path)
     sandbox.configure()
     result = sandbox.execute(code)
+    iteration_count = 1
     if result.success and result.final_answer is not None:
         print("Problem solved! The solution is:")
         print(result.final_answer)
@@ -145,4 +146,3 @@ def solve_task(task: dict):
 
 if __name__ == '__main__':
     solve_task(task)
-    # test_groq()

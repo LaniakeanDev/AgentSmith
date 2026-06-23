@@ -49,11 +49,10 @@ class Sandbox:
             "config": self.config.model_dump(),
             "code": code
         }
-        # self.set_mem_limit()
         docker_cmd = [
             "docker", "run",
             "--rm",
-            # "--network=none", removed because needs HTTP access
+            # "--network=none"
             "--cap-drop=ALL",
             "--security-opt=no-new-privileges",
             "--pids-limit=64",
@@ -71,18 +70,11 @@ class Sandbox:
                 capture_output=True,
                 timeout=self.config.max_execution_time_seconds
             )
-            # import pprint
-            # pprint.pprint(result)
-            if not result.stdout:
-                return ExecutionResult(
-                        success=False,
-                        output="No output from execution",
-                        error="[sandbox:80] Empty result.stdout"
-                    )
+            import pprint
+            pprint.pprint(result)
             try:
                 output_data = json.loads(result.stdout)
                 if output_data["success"] and "final_answer" in output_data:
-                    # print("It is a success!")
                     # import pprint
                     # pprint.pprint(output_data)
                     return ExecutionResult(
@@ -105,10 +97,12 @@ class Sandbox:
                               f" {error}"
                     )
             except json.JSONDecodeError:
+                error = f"[sandbox:107] The sandbox output isn't "\
+                        f"parseable: {result.stdout}"
                 return ExecutionResult(
                     success=False,
                     output=result.stdout,
-                    error="[sandbox:107] The sandbox output isn't parseable"
+                    error=error
                 )
         except subprocess.TimeoutExpired:
             return ExecutionResult(
