@@ -16,7 +16,11 @@ PROVIDERS = ["groq", "openrouter", "qwen"]
 
 
 class MBPPAgent:
-    def __init__(self, provider_model: str, provider_url: str) -> None:
+    def __init__(
+            self,
+            provider_model: str,
+            provider_url: str,
+            max_iterations: int) -> None:
         split_provider_model = provider_model.split('/')
         if len(split_provider_model) != 2 or split_provider_model[0] \
                 not in PROVIDERS:
@@ -27,6 +31,7 @@ class MBPPAgent:
             self.provider = split_provider_model[0].lower()
             self.model_name = split_provider_model[1]
         self.provider_url = provider_url
+        self.max_iterations = max_iterations
 
     def call_qwen(
             self, prompt: str, model="Qwen/Qwen2.5-7B-Instruct"
@@ -233,7 +238,8 @@ class MBPPAgent:
         )
         step_metrics_list.append(step_metrics)
         # print(result)
-        while result.final_answer is None and iteration_count <= 3:
+        while result.final_answer is None and \
+                iteration_count <= self.max_iterations:
             exec_output = result.output
             if result.success:
                 message = "Execution completed but some tests failed"

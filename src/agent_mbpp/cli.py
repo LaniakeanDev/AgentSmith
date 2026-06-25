@@ -1,5 +1,6 @@
 import json
 import sys
+from typing import Optional
 import fire
 
 from src.agent_mbpp.agent_mbpp import MBPPAgent
@@ -15,6 +16,7 @@ class MBPPCli:
         output: str,
         model_name: str,
         provider_url: str,
+        max_iterations: Optional[int] = 10
     ):
         """
         Run MBPP agent on a given task.
@@ -30,7 +32,8 @@ class MBPPCli:
                 task_data = json.load(f)
             task = MBPPTaskInput.model_validate(task_data)
             agent = MBPPAgent(
-                provider_model=model_name, provider_url=provider_url)
+                provider_model=model_name, provider_url=provider_url,
+                max_iterations=max_iterations)
             solution = agent.solve_task(task)
             with open(output, 'w') as f:
                 f.write(solution.model_dump_json(indent=2))
@@ -38,7 +41,6 @@ class MBPPCli:
             print(f"CLI: {type(e).__name__}: {str(e)}")
             sys.exit(1)
         print(f"Solution saved to {output}")
-        return True
 
 
 def main():
