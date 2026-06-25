@@ -5,6 +5,7 @@ from .execute import execute
 # import subprocess
 from pydantic import ValidationError
 from .sandbox import Sandbox
+import traceback
 
 
 def main():
@@ -85,10 +86,11 @@ if __name__ == '__main__':
             "error": "User interrupted the execution"
         }))
     except Exception as e:
+        tb_str = traceback.format_exc()
         print(json.dumps({
             "success": False,
             "output": result.output or "No output from execution",
-            "error": f"{type(e).__name__}: {str(e)}"
+            "error": f"{type(e).__name__}: {str(e)}\n{tb_str}"
         }))
 
 

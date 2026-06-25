@@ -21,6 +21,7 @@ class CallMetrics(BaseModel):
     model_name: str
     llm_output: str
     retries: int
+    prompt: str
 
 
 class StepMetrics(BaseModel):
@@ -36,6 +37,7 @@ class StepMetrics(BaseModel):
     sandbox_output: str
     retries: int
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+    prompt: str
 
 
 class SolutionOutput(BaseModel):

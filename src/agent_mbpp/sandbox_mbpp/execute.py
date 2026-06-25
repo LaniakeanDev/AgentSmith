@@ -5,6 +5,7 @@ import resource
 import io
 import json
 import os
+import traceback
 
 
 class FinalAnswer(BaseException):
@@ -82,18 +83,6 @@ def execute(code: str, config: SandboxConfig) -> ExecutionResult:
         raise
     except KeyboardInterrupt:
         raise
-    except PermissionError as e:
-        return ExecutionResult(
-            success=False,
-            output=output,
-            error=f"Sandbox caught PermissionError: {str(e)}"
-        )
-    except MemoryError as e:
-        return ExecutionResult(
-            success=False,
-            output=output,
-            error=f"Memory limit exceeded ({config.max_memory_mb}MB): {str(e)}"
-        )
     except FinalAnswer as e:
         f_ans = e.answer
         return ExecutionResult(
@@ -102,10 +91,11 @@ def execute(code: str, config: SandboxConfig) -> ExecutionResult:
             final_answer=f_ans
         )
     except Exception as e:
+        tb_str = traceback.format_exc()
         return ExecutionResult(
             success=False,
             output=output,
-            error=f"{type(e).__name__}: {str(e)}"
+            error=f"{type(e).__name__}: {str(e)}\n{tb_str}"
         )
     finally:
         sys.stdout = reg_stdout
