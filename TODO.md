@@ -4,8 +4,6 @@
 
 ### sandbox CLI usage
 ```bash
-# implement running the MCP server using the command
-uv run sandbox --mcp-stdio "python mcp_tools_mbpp.py" sandbox_template.json
 # With MBPP tools (HTTP)
 uv run sandbox --mcp-server <URL>
 ```
