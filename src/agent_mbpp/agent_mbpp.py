@@ -6,7 +6,7 @@ import requests
 import time
 import os
 from dotenv import load_dotenv
-from sandbox.config import ExecutionResult, SandboxConfig
+from sandbox.sandbox_models import ExecutionResult, SandboxConfig
 from sandbox.sandbox import Sandbox
 from groq import Groq
 

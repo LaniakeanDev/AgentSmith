@@ -1,10 +1,13 @@
 import asyncio
-from .config import SandboxConfig, ExecutionResult
+
+from .constants import DEFAULT_SERVER_PATH
+from .sandbox_models import SandboxConfig, ExecutionResult
 from .mcp_client import MCPClient
 import subprocess
 import json
 import os
 from .constants import safe_builtins
+import shlex
 
 
 class TimeoutError(Exception):
@@ -22,15 +25,49 @@ def timeout_handler(signum, frame):
 
 
 class Sandbox:
-    def __init__(self, config: SandboxConfig, server_path: str) -> None:
+    def __init__(self,
+                 config: SandboxConfig,
+                 server_path: str | None = None,
+                 mcp_command: str | None = None) -> None:
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.config = config
         self.server_path = server_path
         self.mcp_client = MCPClient()
         self.exec_count: int = 0
+        if mcp_command is not None:
+            split_cmd = shlex.split(mcp_command)
+            for word in split_cmd:
+                if self.is_mcp_server_file(word):
+                    try:
+                        with open(word, 'r') as f:
+                            content = f.read()
+                            filename = word.split('/').pop()
+                        with open('src/sandbox/' + filename, 'w') as f:
+                            f.write(content)
+                            self.server_path = filename
+                    except Exception as e:
+                        print(f"WARNING: {type(e).__name__}: {str(e)}")
+                        print("Using default MCP server instead")
+                    finally:
+                        break
+
+    def is_mcp_server_file(self, file_path):
+        """
+        Check if a file could be an MCP server based on common extensions.
+        """
+        mcp_extensions = {
+            '.py', '.js', '.ts', '.go', '.rs', '.rb',
+            '.java', '.cs', '.kt', '.swift'
+        }
+        if not os.path.isfile(file_path):
+            return False
+        ext = os.path.splitext(file_path)[1].lower()
+        return ext in mcp_extensions
 
     def configure(self):
+        if self.server_path is None:
+            self.server_path = DEFAULT_SERVER_PATH
         self.loop.run_until_complete(
             self.mcp_client.connect_to_server(self.server_path)
         )

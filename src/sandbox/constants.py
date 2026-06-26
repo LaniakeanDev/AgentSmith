@@ -1,3 +1,7 @@
+
+DEFAULT_SERVER_PATH = 'src/fastmcp_server.py'
+
+
 safe_builtins = {
     # === Type conversion ===
     'bool': bool,

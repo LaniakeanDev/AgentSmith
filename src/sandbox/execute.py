@@ -1,5 +1,5 @@
 import sys
-from .config import SandboxConfig, ExecutionResult
+from .sandbox_models import SandboxConfig, ExecutionResult
 from .constants import safe_builtins
 import resource
 import io

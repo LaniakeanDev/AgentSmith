@@ -1,6 +1,6 @@
 import json
 import sys
-from .config import SandboxConfig
+from .sandbox_models import SandboxConfig
 from .execute import execute
 # import subprocess
 from pydantic import ValidationError
