@@ -69,7 +69,7 @@ class Sandbox:
         if self.server_path is None:
             self.server_path = DEFAULT_SERVER_PATH
         self.loop.run_until_complete(
-            self.mcp_client.connect_to_server(self.server_path)
+            self.mcp_client.connect_server_stdio_path(self.server_path)
         )
         self.restricted_globals = self.loop.run_until_complete(
             self.build_globals()
