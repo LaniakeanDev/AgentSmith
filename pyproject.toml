@@ -13,7 +13,6 @@ dependencies = [
 
 [project.scripts]
 sandbox = "sandbox.cli:main"
-sandbox_mbpp = "sandbox_mbpp.cli:main"
 agent_mbpp = "src.agent_mbpp.cli:main"
 
 [tool.uv]

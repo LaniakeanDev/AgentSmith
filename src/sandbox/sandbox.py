@@ -1,9 +1,6 @@
 import asyncio
 from .config import SandboxConfig, ExecutionResult
 from .mcp_client import MCPClient
-import io
-import sys
-import signal
 import subprocess
 import json
 import os
@@ -122,101 +119,6 @@ class Sandbox:
                 output="No output from execution",
                 error=f"[sandbox:119] {type(e).__name__}: {str(e)}",
             )
-        # reg_stdout = sys.stdout
-        # sys.stdout = buffer = io.StringIO()
-        # try:
-        #     exec(code, self.restricted_globals)
-        #     output = buffer.getvalue()
-        #     return ExecutionResult(
-        #         success=True,
-        #         output=output
-        #     )
-        # except SystemExit:
-        #     raise
-        # except KeyboardInterrupt:
-        #     raise
-        # except PermissionError as e:
-        #     return ExecutionResult(
-        #         success=False,
-        #         output="",
-        #         error=f"Sandbox caught PermissionError: {str(e)}"
-        #     )
-        # except MemoryError as e:
-        #     return ExecutionResult(
-        #         success=False,
-        #         output="",
-        #         error=f"Memory limit exceeded (\
-        #             {self.config.max_memory_mb}MB): {str(e)}"
-        #     )
-        # except FinalAnswer as e:
-        #     f_ans = e.answer
-        #     return ExecutionResult(
-        #         success=True,
-        #         output="",
-        #         final_answer=f_ans
-        #     )
-        # except Exception as e:
-        #     return ExecutionResult(
-        #         success=False,
-        #         output="",
-        #         error=f"{type(e).__name__}: {str(e)}"
-        #     )
-        # finally:
-        #     sys.stdout = reg_stdout
-
-    def execute_old(self, code: str) -> ExecutionResult:
-        """Execute LLM-generated code in restricted environment"""
-        self.exec_count += 1
-        signal.signal(signal.SIGALRM, timeout_handler)
-        signal.alarm(self.config.max_execution_time_seconds)
-        self.set_mem_limit()
-        reg_stdout = sys.stdout
-        sys.stdout = buffer = io.StringIO()
-        try:
-            exec(code, self.restricted_globals)
-            output = buffer.getvalue()
-            return ExecutionResult(
-                success=True,
-                output=output
-            )
-        except TimeoutError as e:
-            return ExecutionResult(
-                success=False,
-                output="",
-                error=f"Sandbox caught TimeoutError: {str(e)}"
-            )
-        except SystemExit:
-            raise
-        except KeyboardInterrupt:
-            raise
-        except PermissionError as e:
-            return ExecutionResult(
-                success=False,
-                output="",
-                error=f"Sandbox caught PermissionError: {str(e)}"
-            )
-        except MemoryError as e:
-            return ExecutionResult(
-                success=False,
-                output="",
-                error=f"Memory limit exceeded (\
-                    {self.config.max_memory_mb}MB): {str(e)}"
-            )
-        except FinalAnswer as e:
-            f_ans = e.answer
-            return ExecutionResult(
-                success=True,
-                output="",
-                final_answer=f_ans
-            )
-        except Exception as e:
-            return ExecutionResult(
-                success=False,
-                output="",
-                error=f"{type(e).__name__}: {str(e)}"
-            )
-        finally:
-            sys.stdout = reg_stdout
 
     def restricted_import_factory(self):
         """Create import filter bound to config"""

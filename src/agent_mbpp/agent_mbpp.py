@@ -13,6 +13,7 @@ from groq import Groq
 load_dotenv()
 
 PROVIDERS = ["groq", "openrouter", "qwen"]
+# add Cerebras
 
 
 class MBPPAgent:
