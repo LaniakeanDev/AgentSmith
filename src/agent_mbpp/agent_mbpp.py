@@ -6,8 +6,8 @@ import requests
 import time
 import os
 from dotenv import load_dotenv
-from agent_mbpp.sandbox_mbpp.config import ExecutionResult, SandboxConfig
-from agent_mbpp.sandbox_mbpp.sandbox import Sandbox
+from sandbox.config import ExecutionResult, SandboxConfig
+from sandbox.sandbox import Sandbox
 from groq import Groq
 
 load_dotenv()

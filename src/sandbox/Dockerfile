@@ -16,6 +16,6 @@ COPY pyproject.toml uv.lock* ./
 RUN mkdir sandbox && \
     uv sync --frozen
 
-COPY . ./sandbox
+COPY . ./sandbox_mbpp
 
-CMD ["uv", "run", "python", "-m", "sandbox"]
+CMD ["uv", "run", "python", "-m", "sandbox_mbpp"]
