@@ -40,7 +40,6 @@ class Sandbox:
         self.restricted_globals = self.loop.run_until_complete(
             self.build_globals()
         )
-        print("Sandbox configuration successful")
 
     def execute(self, code: str) -> ExecutionResult:
         """Execute LLM-generated code in restricted environment"""
@@ -70,8 +69,8 @@ class Sandbox:
                 capture_output=True,
                 timeout=self.config.max_execution_time_seconds
             )
-            import pprint
-            pprint.pprint(result)
+            # import pprint
+            # pprint.pprint(result)
             try:
                 output_data = json.loads(result.stdout)
                 if output_data["success"] and "final_answer" in output_data:

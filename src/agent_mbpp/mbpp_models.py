@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from time import datetime
+from datetime import datetime
 
 
 class MBPPTaskInput(BaseModel):
@@ -10,6 +10,18 @@ class MBPPTaskInput(BaseModel):
     function_definition: str
     test_imports: List[str] = Field(default_factory=list)
     test_list: List[str] = Field(default_factory=list)
+
+
+class CallMetrics(BaseModel):
+    """Metrics for a single LLM call."""
+    input_tokens: int
+    output_tokens: int
+    request_time_ms: float
+    api_url: str
+    model_name: str
+    llm_output: str
+    retries: int
+    prompt: str
 
 
 class StepMetrics(BaseModel):
@@ -25,6 +37,7 @@ class StepMetrics(BaseModel):
     sandbox_output: str
     retries: int
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+    prompt: str
 
 
 class SolutionOutput(BaseModel):
