@@ -1,57 +1,8 @@
 import sys
 from .sandbox_models import SandboxConfig, ExecutionResult, FinalAnswer
-# from .constants import safe_builtins
 import resource
 import io
-# import json
-# import os
 import traceback
-
-
-# def restricted_import_factory(config: SandboxConfig):
-#     """Create import filter bound to config"""
-#     def restricted_import(name, *args, **kwargs):
-#         if name in config.authorized_imports:
-#             return __import__(name, *args, **kwargs)
-#         authorized_imports_str = ""
-#         for item in config.authorized_imports:
-#             authorized_imports_str += f"{item}, "
-#             if item.endswith('.*'):
-#                 prefix = item[:-2]
-#                 if name == prefix or name.startswith(prefix + '.'):
-#                     return __import__(name, *args, **kwargs)
-#         authorized_imports_str = authorized_imports_str[:-2]
-#         message = f"Import of '{name}' is not allowed.\n"
-#         message += f"Authorized imports: {authorized_imports_str}"
-#         raise ImportError(message)
-#     return restricted_import
-
-
-# def restricted_open_factory(config):
-#     allowed = [
-#         os.path.realpath(p)
-#         for p in config.allowed_directories
-#     ]
-
-#     def restricted_open(path, *args, **kwargs):
-#         real = os.path.realpath(path)
-#         for root in allowed:
-#             if (real == root
-#                     or real.startswith(root + os.sep)):
-#                 return open(real, *args, **kwargs)
-#         raise PermissionError(f"Unauthorized path: {path}")
-
-#     return restricted_open
-
-
-# def build_globals(config: SandboxConfig):
-#     builtins = safe_builtins.copy()
-#     builtins["open"] = restricted_open_factory(config)
-#     builtins['__import__'] = restricted_import_factory(config)
-#     return {
-#         '__builtins__': builtins,
-#         'final_answer': handle_final_answer
-#     }
 
 
 def set_mem_limit(config: SandboxConfig):
@@ -64,7 +15,6 @@ def execute(
         config: SandboxConfig,
         restricted_globals: dict) -> ExecutionResult:
     set_mem_limit(config)
-    # restricted_globals = build_globals(config)
     reg_stdout = sys.stdout
     # capture untrusted code's output
     sys.stdout = buffer = io.StringIO()
