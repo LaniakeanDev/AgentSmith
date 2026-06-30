@@ -5,7 +5,6 @@ import resource
 import io
 import json
 import os
-import traceback
 
 
 class FinalAnswer(BaseException):
@@ -30,6 +29,7 @@ def restricted_import_factory(config: SandboxConfig):
         message = f"Import of '{name}' is not allowed.\n"
         message += f"Authorized imports: {authorized_imports_str}"
         raise ImportError(message)
+
     return restricted_import
 
 
@@ -69,42 +69,6 @@ def execute(code: str, config: SandboxConfig) -> ExecutionResult:
     set_mem_limit(config)
     restricted_globals = build_globals(config)
     reg_stdout = sys.stdout
-    # capture untrusted code's output
-    sys.stdout = buffer = io.StringIO()
-    output = "No output generated"
-    try:
-        exec(code, restricted_globals)
-        output = buffer.getvalue()
-        return ExecutionResult(
-            success=True,
-            output=output
-        )
-    except SystemExit:
-        raise
-    except KeyboardInterrupt:
-        raise
-    except FinalAnswer as e:
-        f_ans = e.answer
-        return ExecutionResult(
-            success=True,
-            output=output,
-            final_answer=f_ans
-        )
-    except Exception as e:
-        tb_str = traceback.format_exc()
-        return ExecutionResult(
-            success=False,
-            output=output,
-            error=f"{type(e).__name__}: {str(e)}\n{tb_str}"
-        )
-    finally:
-        sys.stdout = reg_stdout
-
-
-def execute_old(code: str, config: SandboxConfig) -> ExecutionResult:
-    set_mem_limit(config)
-    restricted_globals = build_globals(config)
-    reg_stdout = sys.stdout
     sys.stdout = buffer = io.StringIO()
     try:
         exec(code, restricted_globals)
@@ -121,8 +85,7 @@ def execute_old(code: str, config: SandboxConfig) -> ExecutionResult:
         return ExecutionResult(
             success=False,
             output="",
-            error=f"Sandbox caught PermissionError: \
-                {type(e).__name__}: {str(e)}"
+            error=f"Sandbox caught PermissionError: {str(e)}"
         )
     except MemoryError as e:
         return ExecutionResult(
@@ -137,11 +100,12 @@ def execute_old(code: str, config: SandboxConfig) -> ExecutionResult:
             output="",
             final_answer=f_ans
         )
+
     except Exception as e:
         return ExecutionResult(
             success=False,
             output="",
-            error=f"{type(e).__name__}: {str(e)}"
+            error=str(e)
         )
     finally:
         sys.stdout = reg_stdout

@@ -20,7 +20,7 @@ class MCPClient:
         """Connect to an MCP server
 
         Args:
-            server_script_path: Path to the server script (.py or .js)
+            server_script_path: Path to the server script
         """
         server_params = StdioServerParameters(
             command="python",

@@ -37,4 +37,5 @@ def greet_user(name: str, style: str = "friendly") -> str:
 
 # Run with streamable HTTP transport
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http")
+    # mcp.run(transport="streamable-http")
+    mcp.run(transport="stdio")

@@ -6,8 +6,8 @@ install_docker_sandbox:
 	cd ../.. && \
 	docker build -t sandbox-image src/sandbox
 
-install_docker_sandbox_mbpp:
-	cd src/agent_mbpp/sandbox_mbpp && \
-	uv lock && \
-	cd ../../.. && \
-	docker build -t sandbox_mbpp-image src/agent_mbpp/sandbox_mbpp
+# install_docker_sandbox_mbpp:
+# 	cd src/sandbox && \
+# 	uv lock && \
+# 	cd ../../.. && \
+# 	docker build -t sandbox_mbpp-image src/sandbox
