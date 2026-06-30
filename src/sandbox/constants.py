@@ -1,6 +1,9 @@
 
 DEFAULT_SERVER_PATH = 'src/fastmcp_server.py'
 
+DEFAULT_SERVER_NAME = 'fastmcp_server.py'
+
+DEFAULT_MCP_CMD = "python " + DEFAULT_SERVER_NAME
 
 safe_builtins = {
     # === Type conversion ===

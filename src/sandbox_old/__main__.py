@@ -38,7 +38,7 @@ if __name__ == '__main__':
             print(json.dumps({
                 "success": False,
                 "output": "",
-                "error": result.stderr or "No output from execution"
+                "error": result.stderr or "No error from execution"
             }))
     except SystemExit as e:
         print(json.dumps({

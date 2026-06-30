@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 import shlex
 from typing import Optional
 from contextlib import AsyncExitStack
@@ -8,7 +9,9 @@ from mcp.client.stdio import stdio_client
 
 
 class MCPClient:
-    def __init__(self):
+    def __init__(self, mcp_cmd: str):
+        self.mcp_cmd = mcp_cmd
+        self.process: Optional[subprocess.Popen] = None
         self.session: Optional[ClientSession] = None
         self.exit_stack: Optional[AsyncExitStack] = None
         self.tools = None
@@ -17,6 +20,27 @@ class MCPClient:
         self.write_stream = None
         self.server_process = None
         self.server_thread = None
+        try:
+            self.spawn_server()
+        except Exception:
+            raise
+
+    def spawn_server(self):
+        """Spawn the MCP server process"""
+        command = self.mcp_cmd.split(" ")
+        try:
+            self.process = subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1  # Line buffered
+            )
+            # print(f"Server started with PID: {self.process.pid}")
+            return True
+        except Exception as e:
+            raise Exception(f"Failed to start server: {e}")
 
     async def connect_server_stdio_cmd(self, cmd: str):
         """Connect to the MCP server via path

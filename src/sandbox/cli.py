@@ -3,7 +3,7 @@ from .sandbox_models import SandboxConfig
 # from .sandbox_launcher import launch_sandbox
 import json
 import sys
-from .sandbox import Sandbox
+from .spawner import Spawner
 
 
 class SandboxCLI:
@@ -19,7 +19,7 @@ class SandboxCLI:
             print("You did not enter any code for the sandbox")
             sys.exit(0)
         config = get_config(config_path)
-        sandbox = Sandbox(
+        sandbox = Spawner(
             config=config, server_path=None, mcp_command=mcp_command)
         sandbox.configure()
         exec_through_sandbox(sandbox=sandbox, code=code)
@@ -33,13 +33,13 @@ class SandboxCLI:
             print("You did not enter any code for the sandbox")
             sys.exit(0)
         config = get_config(config_path)
-        sandbox = Sandbox(config=config, server_path=server_path)
+        sandbox = Spawner(config=config, server_path=server_path)
         sandbox.configure()
         exec_through_sandbox(sandbox=sandbox, code=code)
 
 
-def exec_through_sandbox(sandbox: Sandbox, code: str):
-    result = sandbox.execute(code)
+def exec_through_sandbox(sandbox: Spawner, code: str):
+    result = sandbox.spawn(code)
     if result.success:
         print("\n\nYour result:")
         print("-" * 12)

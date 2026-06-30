@@ -2,6 +2,11 @@
 
 ## Sandbox
 
+Right now the MCP Client and server are outside Docker.
+Remove the Docker and use a simple subprocess
+?Change Sandbox -> SandboxSpawner
+?Create Sandbox class inside Docker that instantiates MCP client and runs server
+
 ### sandbox CLI usage
 ```bash
 # With MBPP tools (HTTP)

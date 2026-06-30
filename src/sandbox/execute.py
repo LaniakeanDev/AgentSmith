@@ -71,7 +71,7 @@ def execute(code: str, config: SandboxConfig) -> ExecutionResult:
     reg_stdout = sys.stdout
     # capture untrusted code's output
     sys.stdout = buffer = io.StringIO()
-    output = "No output generated"
+    output = "No output generatedy"
     try:
         exec(code, restricted_globals)
         output = buffer.getvalue()
@@ -85,6 +85,7 @@ def execute(code: str, config: SandboxConfig) -> ExecutionResult:
         raise
     except FinalAnswer as e:
         f_ans = e.answer
+        output = buffer.getvalue()
         return ExecutionResult(
             success=True,
             output=output,

@@ -7,7 +7,7 @@ import time
 import os
 from dotenv import load_dotenv
 from sandbox.sandbox_models import ExecutionResult, SandboxConfig
-from sandbox.sandbox import Sandbox
+from sandbox.spawner import Spawner
 from groq import Groq
 
 load_dotenv()
@@ -205,9 +205,10 @@ class MBPPAgent:
         # print(code)
         config = SandboxConfig()
         server_path = 'src/fastmcp_server.py'
-        sandbox = Sandbox(config, server_path)
-        sandbox.configure()
-        result = sandbox.execute(code)
+        spawner = Spawner(config, server_path)
+        # spawner.configure()
+        result = spawner.spawn(code)
+        print("Code executed in the sandbox")
         return result, code
 
     def get_new_prompt(
@@ -225,11 +226,12 @@ class MBPPAgent:
         task_start = time.time()
         prompt = task.task_definition + "\nTest list: " + str(task.test_list)
         prompt += " reply with nothing but the code starting by '```python':"
+        iteration_count = 1
+        print("\nIteration 1")
         call_metrics = self.call_llm(prompt)
         llm_output = call_metrics.llm_output.strip()
         result, code = self.sandbox_exec(
             llm_output=llm_output, test_list=task.test_list)
-        iteration_count = 1
         step_metrics_list: List[StepMetrics] = []
         step_metrics = self.get_step_metrics(
             code=code,
@@ -240,12 +242,14 @@ class MBPPAgent:
         step_metrics_list.append(step_metrics)
         # print(result)
         while result.final_answer is None and \
-                iteration_count <= self.max_iterations:
+                iteration_count <= 1:
+                # iteration_count <= self.max_iterations:
             exec_output = result.output
             if result.success:
                 message = "Execution completed but some tests failed"
             else:
                 message = f"Execution could not complete: {result.error}"
+            print(message)
             prompt = self.get_new_prompt(
                 prompt=prompt,
                 code=code,
@@ -253,11 +257,12 @@ class MBPPAgent:
                 iteration_count=iteration_count,
                 message=message
                 )
+            iteration_count += 1
+            print(f"\nIteration {iteration_count}")
             call_metrics = self.call_llm(prompt)
             llm_output = call_metrics.llm_output.strip()
             result, code = self.sandbox_exec(
                 llm_output=llm_output, test_list=task.test_list)
-            iteration_count += 1
             step_metrics = self.get_step_metrics(
                 code=code,
                 result=result,
@@ -266,6 +271,7 @@ class MBPPAgent:
             )
             step_metrics_list.append(step_metrics)
         task_duration = time.time() - task_start
+        print()
         if not result.final_answer:
             print("Could not solve this problem")
             return SolutionOutput(
@@ -288,6 +294,7 @@ class MBPPAgent:
         else:
             print("\nProblem solved! The solution is:\n")
             print(result.final_answer)
+            print(result.output)
             return SolutionOutput(
                 task_id=str(task.task_id),
                 benchmark="mbpp",
