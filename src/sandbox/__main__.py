@@ -88,10 +88,11 @@ class Sandbox:
                     "error": result.error or "No error from execution"
                 }))
         except SystemExit as e:
+            output = f"{self.mcp_client.messages}\n{self.output}"
+            output += f"\nScript exited early with code {e.code}"
             print(json.dumps({
                 "success": False,
-                "output": f"{self.mcp_client.messages}\n{self.output}" + f"\nScript exited early with code \
-                    {e.code}",
+                "output": output,
                 "error": f"Early SystemExit with code {str(e)}"
             }))
         except KeyboardInterrupt:
