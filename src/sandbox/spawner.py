@@ -14,12 +14,6 @@ class TimeoutError(Exception):
     pass
 
 
-class FinalAnswer(BaseException):
-    def __init__(self, answer):
-        super().__init__()
-        self.answer = answer
-
-
 def timeout_handler(signum, frame):
     raise TimeoutError("Execution timed out")
 

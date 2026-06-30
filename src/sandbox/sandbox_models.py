@@ -34,3 +34,9 @@ class ExecutionResult(BaseModel):
     final_answer: str | None = None
     error: str | None = None
     # info: str | None = None
+
+
+class FinalAnswer(BaseException):
+    def __init__(self, answer):
+        super().__init__()
+        self.answer = answer

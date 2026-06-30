@@ -13,7 +13,7 @@ COPY pyproject.toml uv.lock* ./
 # meaning of --frozen:
 # no changes are made to the lock file during the sync process
 # uv.lock already in sync with pyproject.toml
-RUN mkdir sandbox && \
+RUN mkdir sandbox_mbpp && \
     uv sync --frozen
 
 COPY . ./sandbox_mbpp

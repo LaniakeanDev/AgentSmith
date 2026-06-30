@@ -1,6 +1,8 @@
 import asyncio
-import subprocess
+# import subprocess
+import os
 import shlex
+import sys
 from typing import Optional
 from contextlib import AsyncExitStack
 
@@ -11,97 +13,106 @@ from mcp.client.stdio import stdio_client
 class MCPClient:
     def __init__(self, mcp_cmd: str):
         self.mcp_cmd = mcp_cmd
-        self.process: Optional[subprocess.Popen] = None
         self.session: Optional[ClientSession] = None
         self.exit_stack: Optional[AsyncExitStack] = None
         self.tools = None
         self.connected = False
         self.read_stream = None
         self.write_stream = None
-        self.server_process = None
-        self.server_thread = None
-        try:
-            self.spawn_server()
-        except Exception:
-            raise
+        self.messages = ""
+        # try:
+        #     self.spawn_server()
+        # except Exception:
+        #     raise
 
-    def spawn_server(self):
-        """Spawn the MCP server process"""
-        command = self.mcp_cmd.split(" ")
+    async def connect_server(self):
+        """Connect to the MCP server using stdio_client"""
+        if self.connected:
+            return None
+        self.exit_stack = AsyncExitStack()
+        cmd_args = shlex.split(self.mcp_cmd)
+        # spawn and manage the server process
+        command = cmd_args[0]
+        args = cmd_args[1:] if len(cmd_args) > 1 else []
+
+        # resolve any relative script path against the project root
+        PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        args = [
+            os.path.join(PROJECT_ROOT, a) if not os.path.isabs(a) and a.endswith(".py") else a
+            for a in args
+        ]
+        server_params = StdioServerParameters(
+            command=command,
+            args=args,
+            env=None
+        )
         try:
-            self.process = subprocess.Popen(
-                command,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1  # Line buffered
+            # Start the server and connect to it
+            stdio_transport = await self.exit_stack.enter_async_context(
+                stdio_client(server_params)
             )
-            # print(f"Server started with PID: {self.process.pid}")
-            return True
+            self.read_stream, self.write_stream = stdio_transport
+            # Create client session
+            self.session = await self.exit_stack.enter_async_context(
+                ClientSession(self.read_stream, self.write_stream)
+            )
+            if self.session is None:
+                raise Exception("Failed to create client session")
+            # Initialize the session
+            await self.session.initialize()
+            # List available tools
+            response = await self.session.list_tools()
+            self.tools = response.tools
+            self.messages += \
+                f"Connected to server with tools: "\
+                f"{[tool.name for tool in self.tools]}"
+            self.connected = True
+
         except Exception as e:
-            raise Exception(f"Failed to start server: {e}")
+            await self.cleanup()
+            raise Exception(
+                f"Failed to connect to server: {type(e).__name__}: "
+                f"{str(e)}")
 
-    async def connect_server_stdio_cmd(self, cmd: str):
-        """Connect to the MCP server via path
+    async def cleanup(self):
+        """Clean up resources"""
+        if self.exit_stack:
+            await self.exit_stack.aclose()
+            self.exit_stack = None
+        self.connected = False
+        self.session = None
+        self.tools = None
+        self.read_stream = None
+        self.write_stream = None
 
-        Args:
-            server_script_path: Path to the server script
-        """
-        if self.connected:
-            return None
-        self.exit_stack = AsyncExitStack()
-        cmd_args = shlex.split(cmd)
-        # stdio_client will start the server as a subprocess automatically
-        server_params = StdioServerParameters(
-            command=cmd_args[0],
-            args=cmd_args[1:] if len(cmd_args) > 1 else [],
-            env=None
-        )
-        # Start the server and connect to it
-        stdio_transport = await self.exit_stack.enter_async_context(
-            stdio_client(server_params)
-        )
-        self.read_stream, self.write_stream = stdio_transport
-        # Enter the ClientSession context manually
-        self.session = await self.exit_stack.enter_async_context(
-            ClientSession(self.read_stream, self.write_stream)
-        )
-        await self.session.initialize()
-        response = await self.session.list_tools()
-        self.tools = response.tools
-        print("\nConnected to server with tools:",
-              [tool.name for tool in self.tools])
-        self.connected = True
+    # async def connect_server_stdio_path(self, server_path: str):
+    #     """Connect to the MCP server via path
 
-    async def connect_server_stdio_path(self, server_path: str):
-        """Connect to the MCP server via path
-
-        Args:
-            server_script_path: Path to the server script
-        """
-        if self.connected:
-            return None
-        self.exit_stack = AsyncExitStack()
-        server_params = StdioServerParameters(
-            command="python",
-            args=[server_path],
-            env=None
-        )
-        stdio_transport = await self.exit_stack.enter_async_context(
-            stdio_client(server_params)
-        )
-        self.read_stream, self.write_stream = stdio_transport
-        # Enter the ClientSession context manually
-        self.session = await self.exit_stack.enter_async_context(
-            ClientSession(self.read_stream, self.write_stream)
-        )
-        await self.session.initialize()
-        response = await self.session.list_tools()
-        self.tools = response.tools
-        print("\nConnected to server with tools:",
-              [tool.name for tool in self.tools])
-        self.connected = True
+    #     Args:
+    #         server_script_path: Path to the server script
+    #     """
+    #     if self.connected:
+    #         return None
+    #     self.exit_stack = AsyncExitStack()
+    #     server_params = StdioServerParameters(
+    #         command="python",
+    #         args=[server_path],
+    #         env=None
+    #     )
+    #     stdio_transport = await self.exit_stack.enter_async_context(
+    #         stdio_client(server_params)
+    #     )
+    #     self.read_stream, self.write_stream = stdio_transport
+    #     # Enter the ClientSession context manually
+    #     self.session = await self.exit_stack.enter_async_context(
+    #         ClientSession(self.read_stream, self.write_stream)
+    #     )
+    #     await self.session.initialize()
+    #     response = await self.session.list_tools()
+    #     self.tools = response.tools
+    #     print("\nConnected to server with tools:",
+    #           [tool.name for tool in self.tools])
+    #     self.connected = True
 
     async def get_tools(self) -> None:
         """Discover tools from MCP server"""
