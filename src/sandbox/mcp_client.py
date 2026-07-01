@@ -85,6 +85,10 @@ class MCPClient:
         self.read_stream = None
         self.write_stream = None
 
+    # @property
+    # def tools(self):
+    #     return self.tools
+
     # async def connect_server_stdio_path(self, server_path: str):
     #     """Connect to the MCP server via path
 
@@ -158,4 +162,6 @@ class MCPClient:
                     f"{'*' if required else ''}: {param_info.get(
                         'description', '')}")
             lines.append("")
-        self.sandbox_manual = "\n".join(lines)
+        manual = "\n".join(lines)
+        self.sandbox_manual = manual
+        return manual

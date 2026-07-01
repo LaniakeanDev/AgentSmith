@@ -51,7 +51,7 @@ def read_file(filepath: str, start_line: int, end_line: int) -> str | None:
 
 
 @mcp.tool()
-def list_files(directory: str, pattern: str = "*") -> dict[str, any] | None:
+def list_files(directory: str, pattern: str = "*") -> dict[str, Any] | None:
     """
     List files in a directory matching a given pattern.
 
@@ -190,7 +190,7 @@ def search_code(pattern: str, file_pattern: str = "*") -> str | None:
 
 @mcp.tool()
 def edit_file(filepath: str,
-              old_str: str, new_str: str) -> dict[str, any] | None:
+              old_str: str, new_str: str) -> dict[str, Any] | None:
     """
     Replace an exact string in a file with a new string.
 
