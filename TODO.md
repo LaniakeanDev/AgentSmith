@@ -4,6 +4,8 @@
 
 ?Remove the Docker and use a simple subprocess
 
+Retry logic, provider shift logic
+
 ### sandbox CLI usage
 ```bash
 # With MBPP tools (HTTP)
