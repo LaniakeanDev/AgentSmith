@@ -154,7 +154,7 @@ class SWEBenchAgent(AbstractAgent):
             iteration_count=iteration_count
         )
         step_metrics_list.append(step_metrics)
-        code = extracted_code
+        extracted_code
         while result.final_answer is None and \
                 iteration_count < self.max_iterations:
             exec_output = result.output
@@ -166,13 +166,14 @@ class SWEBenchAgent(AbstractAgent):
             print(message)
             prompt = self.get_new_prompt(
                 prompt=prompt,
-                code=code,
+                code=extracted_code,
                 exec_output=exec_output,
                 iteration_count=iteration_count,
                 message=message
                 )
             iteration_count += 1
             print(f"\n\nIteration {iteration_count}")
+            print(f"prompt: {prompt}")
             print(f"Calling {self.provider}...")
             call_metrics = self.call_llm(prompt)
             print("Response received")
@@ -421,6 +422,11 @@ Do NOT import the library you are fixing. Do NOT define functions with def.
 Always print() the result of every tool call.
 Files are in /testbed. Use search_code to find exact paths—do not guess.
 The Evaluation Script shows how your fix will be tested. Do NOT run it yourself.
+When using edit_file, match the exact indentation of old_str in new_str.
+When editing, include enough context in old_str to match only ONE location.
+After a successful edit, call final_answer(get_patch()) immediately.
+Check for commented-out fixes in the traceback.
+Output only one code block per response.
 
 {self.mcp_manual}
 

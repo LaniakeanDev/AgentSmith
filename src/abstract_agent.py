@@ -96,32 +96,49 @@ class AbstractAgent:
         return call_metrics
 
     def call_groq(
-            self, prompt: str, model='llama-3.3-70b-versatile'
-            ) -> CallMetrics:
+        self, prompt: str, model='llama-3.3-70b-versatile'
+    ) -> CallMetrics:
+        number_of_keys = 2
         retries = 0
-        client = Groq(
-            api_key=os.environ.get("GROQ_API_KEY"),
-        )
-        response = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            model=model,
-        )
-        call_metrics = CallMetrics(
-            input_tokens=response.usage.prompt_tokens,
-            output_tokens=response.usage.completion_tokens,
-            request_time_ms=response.usage.total_time * 1000,
-            api_url="https://api.groq.com/openai/v1/chat/completions",
-            model_name=response.model,
-            llm_output=response.choices[0].message.content,
-            retries=retries,
-            prompt=prompt
-            )
-        return call_metrics
+        max_retries_per_key = 3
+        for key_num in range(1, number_of_keys + 1):
+            for attempt in range(max_retries_per_key):
+                try:
+                    client = Groq(
+                        api_key=os.environ.get(f"GROQ_API_KEY_{key_num}")
+                    )
+                    response = client.chat.completions.create(
+                        messages=[{"role": "user", "content": prompt}],
+                        model=model,
+                    )
+                    api_url = "https://api.groq.com/openai/v1/chat/completions"
+                    return CallMetrics(
+                        input_tokens=response.usage.prompt_tokens,
+                        output_tokens=response.usage.completion_tokens,
+                        request_time_ms=response.usage.total_time * 1000,
+                        api_url=api_url,
+                        model_name=response.model,
+                        llm_output=response.choices[0].message.content,
+                        retries=retries,
+                        prompt=prompt
+                    )
+                except Exception as e:
+                    retries += 1
+                    error_msg = str(e).lower()
+                    # If rate limit and we have retries left on this key, retry
+                    if not ("429" in error_msg or "rate limit" in error_msg) \
+                            and attempt < max_retries_per_key - 1:
+                        time.sleep(1)  # Brief wait before retry
+                        continue
+                    # If rate limit and out of retries, try next key
+                    elif ("429" in error_msg or "rate limit" in error_msg) or \
+                            attempt == max_retries_per_key - 1:
+                        break
+                    else:
+                        raise e
+        # If we get here, all keys are rate limited
+        raise Exception(f"All {number_of_keys} API keys rate limited after \
+                        {retries} total attempts")
 
     def call_cerebras(self, prompt: str):
         # !pip install cerebras-cloud-sdk
