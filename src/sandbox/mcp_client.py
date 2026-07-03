@@ -63,9 +63,9 @@ class MCPClient:
             # List available tools
             response = await self.session.list_tools()
             self.tools = response.tools
-            self.messages += \
-                f"Connected to server with tools: "\
-                f"{[tool.name for tool in self.tools]}"
+            # self.messages += \
+            #     f"Connected to server with tools: "\
+            #     f"{[tool.name for tool in self.tools]}"
             self.connected = True
 
         except Exception as e:
@@ -128,40 +128,52 @@ class MCPClient:
         await self.get_tools()
         wrappers = {}
         for tool in self.tools:
-            # Capture tool.name in closure to avoid late binding issue
-            def make_wrapper(tool_name):
-                def wrapper(**kwargs):
-                    # This is synchronous from the LLM code's perspective
-                    # but calls the async MCP session underneath
-                    # import asyncio
+            # Capture tool in closure to avoid late binding issue
+            def make_wrapper(tool):
+                # Parameter names in declared order, from the tool's JSON schema
+                param_names = list(tool.inputSchema.get("properties", {}).keys())
+
+                def wrapper(*args, **kwargs):
+                    if len(args) > len(param_names):
+                        raise TypeError(
+                            f"{tool.name}() takes {len(param_names)} "
+                            f"positional arguments but {len(args)} were given"
+                        )
+                    # Map positional args onto their named parameters
+                    call_kwargs = dict(zip(param_names, args))
+                    # Guard against a name being passed both positionally and by keyword
+                    overlap = call_kwargs.keys() & kwargs.keys()
+                    if overlap:
+                        raise TypeError(
+                            f"{tool.name}() got multiple values for "
+                            f"argument(s): {', '.join(overlap)}"
+                        )
+                    call_kwargs.update(kwargs)
                     result = asyncio.get_event_loop().run_until_complete(
-                        self.session.call_tool(tool_name, kwargs)
+                        self.session.call_tool(tool.name, call_kwargs)
                     )
-                    # Extract text content from result
                     return "\n".join(
-                        block.text for block in result.content 
+                        block.text for block in result.content
                         if hasattr(block, "text")
                     )
-                wrapper.__name__ = tool_name
+                wrapper.__name__ = tool.name
                 wrapper.__doc__ = tool.description
                 return wrapper
-            wrappers[tool.name] = make_wrapper(tool.name)
+            wrappers[tool.name] = make_wrapper(tool)
         return wrappers
 
     def generate_sandbox_manual(self) -> str:
-        lines = ["# Available Tools\n"]
+        lines = []
         for tool in self.tools:
-            lines.append(f"## {tool.name}")
-            lines.append(f"{tool.description}\n")
-            lines.append("Parameters:")
-            for param_name, param_info in tool.inputSchema.get(
-                    "properties", {}).items():
-                required = param_name in tool.inputSchema.get("required", [])
-                lines.append(
-                    f"  - {param_name} ({param_info.get('type', 'any')})"
-                    f"{'*' if required else ''}: {param_info.get(
-                        'description', '')}")
-            lines.append("")
+            params = tool.inputSchema.get("properties", {})
+            required = tool.inputSchema.get("required", [])
+            param_str = ", ".join([
+                f"{name}: {info.get('type', 'any')}"
+                f"{'*' if name in required else ''}"
+                for name, info in params.items()
+            ])
+            lines.append(
+                f"{tool.name}: {tool.description} | Params: {param_str}")
         manual = "\n".join(lines)
         self.sandbox_manual = manual
         return manual

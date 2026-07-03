@@ -9,6 +9,7 @@ import subprocess
 
 # Create an MCP server
 mcp = FastMCP("SWEBench", json_response=True)
+cwd = os.path.abspath(os.path.join(os.getcwd(), '..', 'testbed'))
 
 
 # Add an addition tool
@@ -32,7 +33,8 @@ def read_file(filepath: str, start_line: int, end_line: int) -> str | None:
 
     try:
         lines = []
-        with open(filepath, 'r') as f:
+        file_path = Path(cwd) / filepath
+        with open(file_path, 'r') as f:
             for i, line in enumerate(f, 1):
                 if i > end_line:
                     break
@@ -71,7 +73,7 @@ def list_files(directory: str, pattern: str = "*") -> dict[str, Any] | None:
         }
     try:
         # Convert to Path object for better handling
-        dir_path = Path(directory)
+        dir_path = Path(cwd) / directory
         if not dir_path.exists():
             return {
                 'success': False,
@@ -138,7 +140,7 @@ def search_code(pattern: str, file_pattern: str = "*") -> str | None:
     if not pattern:
         return None
     # Default to current directory if no file_pattern specified
-    search_dir = os.getcwd()
+    search_dir = cwd
     # Parse file patterns
     file_patterns = [p.strip() for p in file_pattern.split(',') if p.strip()]
     if not file_patterns:
@@ -210,7 +212,8 @@ def edit_file(filepath: str,
         }
     try:
         # Read the file
-        with open(filepath, 'r', encoding='utf-8') as f:
+        file_path = Path(cwd) / filepath
+        with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         # Check if old_str exists
         if old_str not in content:
@@ -223,7 +226,7 @@ def edit_file(filepath: str,
         # Perform replacement
         new_content = content.replace(old_str, new_str)
         # Write back to file
-        with open(filepath, 'w', encoding='utf-8') as f:
+        with open(file_path, 'w', encoding='utf-8') as f:
             f.write(new_content)
         message = f"Replaced {count} occurrence(s) of '{old_str}' with "\
                   f"'{new_str}' in {filepath}"
@@ -257,7 +260,7 @@ def edit_file(filepath: str,
 
 
 @mcp.tool()
-def search_function_or_class_definition_in_code(name: str) -> str | None:
+def search_function_or_class_definition_in_code(name: str) -> str:
     """
     Find the definition of a function or class in Python files.
 
@@ -270,7 +273,7 @@ def search_function_or_class_definition_in_code(name: str) -> str | None:
     """
     if not name:
         return None
-    search_dir = os.getcwd()
+    search_dir = cwd
     results = []
     patterns = [
         # Function definitions
@@ -306,11 +309,11 @@ def search_function_or_class_definition_in_code(name: str) -> str | None:
                 except (UnicodeDecodeError, PermissionError, OSError):
                     continue
         if not results:
-            return None
+            return f"No results for search: {name}"
         return '\n'.join(results)
     except Exception as e:
         print(f"Search error: {type(e).__name__}: {str(e)}")
-        return None
+        return f"No results for search: {name}"
 
 
 @mcp.tool()
@@ -318,7 +321,7 @@ def find_references(name: str, filepath: str, line: int) -> str | None:
     """Find all usages of a symbol using regex."""
     if not name:
         return None
-    search_dir = os.getcwd()
+    search_dir = cwd
     results = []
     # Patterns to match references
     patterns = [
@@ -337,7 +340,7 @@ def find_references(name: str, filepath: str, line: int) -> str | None:
         re.compile(rf'class\s+\w+\s*\(\s*.*\b{re.escape(name)}\b'),
     ]
     try:
-        def_filepath = os.path.abspath(filepath)
+        def_filepath = os.path.abspath(os.path.join(cwd, filepath))
         for root, dirs, files in os.walk(search_dir):
             dirs[:] = [d for d in dirs if not d.startswith('.') and d not in
                        ['node_modules', '__pycache__', 'venv', 'env', '.git',
@@ -388,7 +391,7 @@ def get_patch() -> str | None:
         # Check if we're in a git repository
         result = subprocess.run(
             ["git", "rev-parse", "--git-dir"],
-            cwd=os.getcwd(),
+            cwd=cwd,
             capture_output=True,
             text=True
         )
@@ -397,7 +400,7 @@ def get_patch() -> str | None:
         # Get the diff of all changes (staged and unstaged)
         result = subprocess.run(
             ["git", "diff", "--unified=3", "--no-color"],
-            cwd=os.getcwd(),
+            cwd=cwd,
             capture_output=True,
             text=True
         )
@@ -406,7 +409,7 @@ def get_patch() -> str | None:
         if not diff_output:
             result = subprocess.run(
                 ["git", "diff", "--cached", "--unified=3", "--no-color"],
-                cwd=os.getcwd(),
+                cwd=cwd,
                 capture_output=True,
                 text=True
             )
@@ -416,7 +419,7 @@ def get_patch() -> str | None:
             # Get list of untracked files
             result = subprocess.run(
                 ["git", "ls-files", "--others", "--exclude-standard"],
-                cwd=os.getcwd(),
+                cwd=cwd,
                 capture_output=True,
                 text=True
             )
@@ -429,10 +432,10 @@ def get_patch() -> str | None:
         if not diff_output:
             return "No changes detected in the repository."
         # Add a header with repository info
-        repo_name = os.path.basename(os.getcwd())
+        repo_name = os.path.basename(cwd)
         branch_result = subprocess.run(
             ["git", "branch", "--show-current"],
-            cwd=os.getcwd(),
+            cwd=cwd,
             capture_output=True,
             text=True
         )
@@ -476,7 +479,7 @@ def run_command(
         }
     # Set working directory
     if workdir:
-        workdir_path = Path(workdir)
+        workdir_path = Path(cwd) / workdir
         if not workdir_path.exists():
             return {
                 'success': False,
@@ -495,16 +498,16 @@ def run_command(
                 'stderr': '',
                 'exit_code': -1
             }
-        cwd = str(workdir_path.absolute())
+        working_dir = str(workdir_path.absolute())
     else:
-        cwd = os.getcwd()
+        workdir_path = Path(cwd)
     try:
         # Execute the command with shell=True for flexibility
         # Using shell=True allows for pipes, redirects, etc.
         process = subprocess.Popen(
             command,
             shell=True,
-            cwd=cwd,
+            cwd=working_dir,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -528,7 +531,7 @@ def run_command(
         return {
             'success': exit_code == 0,
             'command': command,
-            'workdir': cwd,
+            'workdir': working_dir,
             'stdout': stdout,
             'stderr': stderr,
             'exit_code': exit_code

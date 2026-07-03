@@ -8,7 +8,7 @@ from .execute import execute
 from pydantic import ValidationError
 from .constants import safe_builtins
 import traceback
-from .constants import DEFAULT_MCP_CMD
+from .constants import DEFAULT_MCP_CMD_MBPP, DEFAULT_MCP_CMD_SWEB
 from .mcp_client import MCPClient
 
 
@@ -19,8 +19,12 @@ class Sandbox:
         try:
             inputs = json.loads(input_data)
             self.config = SandboxConfig.model_validate(inputs["config"])
+            task_type = inputs["task_type"]
             if self.config.mcp_command is None:
-                self.config.mcp_command = DEFAULT_MCP_CMD
+                if task_type == 'mbpp':
+                    self.config.mcp_command = DEFAULT_MCP_CMD_MBPP
+                else:
+                    self.config.mcp_command = DEFAULT_MCP_CMD_SWEB
             self.code = inputs["code"]
             self.mcp_client = MCPClient(self.config.mcp_command)
             self.loop = asyncio.new_event_loop()
@@ -68,7 +72,7 @@ class Sandbox:
                 config=self.config,
                 restricted_globals=self.restricted_globals)
             if result.output:
-                self.output += f"\nExecution ouput: {result.output}"
+                self.output += f"\nExecution ouput:\n{result.output}"
             if result.success and result.final_answer:
                 print(json.dumps({
                     "success": True,

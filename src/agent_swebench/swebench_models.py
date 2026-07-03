@@ -72,6 +72,7 @@ class StepMetrics(BaseModel):
         default=0,
         description="Number of LLM API retries before getting a successful "
         "response (0 = first attempt succeeded)")
+    prompt: str
 
 
 class SolutionOutput(BaseModel):

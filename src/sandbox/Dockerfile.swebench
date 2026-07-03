@@ -1,0 +1,24 @@
+# pass --build-arg BASE_IMAGE="$image_name" at runtime
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+ENV PYTHONUNBUFFERED=1
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
+RUN pip install uv
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock* ./
+
+# meaning of --frozen:
+# no changes are made to the lock file during the sync process
+# uv.lock already in sync with pyproject.toml
+RUN mkdir sandbox_swebench && \
+    uv sync --frozen
+
+COPY . ./sandbox_swebench
+
+CMD ["uv", "run", "python", "-m", "sandbox_swebench"]
