@@ -419,7 +419,6 @@ class SWEBenchAgent(AbstractAgent):
         return f"""
 Fix a bug in /testbed. The functions below are PRE-LOADED—call them directly.
 Do NOT import the library you are fixing. Do NOT define functions with def.
-Always print() the result of every tool call.
 Files are in /testbed. Use search_code to find exact paths—do not guess.
 The Evaluation Script shows how your fix will be tested. Do NOT run it yourself.
 When using edit_file, match the exact indentation of old_str in new_str.
@@ -438,7 +437,8 @@ result = tool_name(arg1="val1")
 print(result)
 ```
 
-When tests pass: final_answer(get_patch())
+After verifying your solution (next iteration):
+final_answer(patch) must be called alone
 
 ## Task
 ### Problem Statement

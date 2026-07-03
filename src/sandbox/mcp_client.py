@@ -163,17 +163,19 @@ class MCPClient:
         return wrappers
 
     def generate_sandbox_manual(self) -> str:
-        lines = []
+        lines = ["## Available Tools\n"]
         for tool in self.tools:
-            params = tool.inputSchema.get("properties", {})
-            required = tool.inputSchema.get("required", [])
-            param_str = ", ".join([
-                f"{name}: {info.get('type', 'any')}"
-                f"{'*' if name in required else ''}"
-                for name, info in params.items()
-            ])
-            lines.append(
-                f"{tool.name}: {tool.description} | Params: {param_str}")
+            lines.append(f"### {tool.name}")
+            lines.append(f"{tool.description}\n")
+            lines.append("Parameters:")
+            for param_name, param_info in tool.inputSchema.get(
+                    "properties", {}).items():
+                required = param_name in tool.inputSchema.get("required", [])
+                lines.append(
+                    f"  - {param_name} ({param_info.get('type', 'any')})"
+                    f"{'*' if required else ''}: {param_info.get(
+                        'description', '')}")
+            lines.append("")
         manual = "\n".join(lines)
         self.sandbox_manual = manual
         return manual
