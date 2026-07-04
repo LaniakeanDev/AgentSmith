@@ -26,7 +26,12 @@ class Sandbox:
                 else:
                     self.config.mcp_command = DEFAULT_MCP_CMD_SWEB
             self.code = inputs["code"]
-            self.mcp_client = MCPClient(self.config.mcp_command)
+            if "eval_script" in inputs:
+                self.eval_script = inputs["eval_script"]
+            else:
+                self.eval_script = None
+            self.mcp_client = MCPClient(
+                self.config.mcp_command, self.eval_script)
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
             self.restricted_globals = self.loop.run_until_complete(
@@ -155,6 +160,7 @@ class Sandbox:
         restricted_globals = {
             '__builtins__': builtins,
             'final_answer': self.handle_final_answer,
+            'eval_script': self.eval_script,
             **tool_wrappers
         }
         return restricted_globals

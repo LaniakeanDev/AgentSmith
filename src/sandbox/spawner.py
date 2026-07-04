@@ -1,5 +1,7 @@
 import asyncio
 
+from swe_models import SWEBenchTaskInput
+
 # from .constants import DEFAULT_SERVER_PATH
 from .sandbox_models import SandboxConfig, ExecutionResult
 # from .mcp_client import MCPClient
@@ -94,12 +96,13 @@ class Spawner:
     #         self.build_globals()
     #     )
 
-    def spawn(self, code: str) -> ExecutionResult:
+    def spawn(self, code: str, task: SWEBenchTaskInput) -> ExecutionResult:
         """Execute LLM-generated code in restricted environment"""
         self.exec_count += 1
         subprocess_inputs = {
             "config": self.config.model_dump(),
-            "code": code
+            "code": code,
+            "eval_script": task.eval_script
         }
         docker_cmd = [
             "docker", "run",

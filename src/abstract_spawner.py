@@ -1,6 +1,7 @@
 import asyncio
 from typing import List
 
+from agent_swebench.swebench_models import SWEBenchTaskInput
 from models import SandboxConfig, ExecutionResult
 import subprocess
 import json
@@ -54,14 +55,20 @@ class Spawner:
         ext = os.path.splitext(file_path)[1].lower()
         return ext in mcp_extensions
 
-    def spawn(self, code: str, docker_cmd: List[str], task_type: str
+    def spawn(
+            self,
+            code: str,
+            docker_cmd: List[str],
+            task_type: str,
+            task: SWEBenchTaskInput
               ) -> ExecutionResult:
         """Execute LLM-generated code in restricted environment"""
         self.exec_count += 1
         subprocess_inputs = {
             "config": self.config.model_dump(),
             "code": code,
-            "task_type": task_type
+            "task_type": task_type,
+            "eval_script": task.eval_script
         }
         # docker_cmd = [
         #     "docker", "run",

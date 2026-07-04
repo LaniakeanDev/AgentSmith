@@ -11,7 +11,7 @@ from mcp.client.stdio import stdio_client
 
 
 class MCPClient:
-    def __init__(self, mcp_cmd: str):
+    def __init__(self, mcp_cmd: str, eval_script: str | None):
         self.mcp_cmd = mcp_cmd
         self.session: Optional[ClientSession] = None
         self.exit_stack: Optional[AsyncExitStack] = None
@@ -20,6 +20,7 @@ class MCPClient:
         self.read_stream = None
         self.write_stream = None
         self.messages = ""
+        self.eval_script = eval_script
         # try:
         #     self.spawn_server()
         # except Exception:
@@ -44,7 +45,7 @@ class MCPClient:
         server_params = StdioServerParameters(
             command=command,
             args=args,
-            env=None
+            env={"eval_script": self.eval_script}
         )
         try:
             # Start the server and connect to it

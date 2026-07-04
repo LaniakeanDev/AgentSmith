@@ -46,7 +46,7 @@ class SWEBenchAgent(AbstractAgent):
         self.authorized_imports = self.authorized_imports[:-2]
 
     async def get_mcp_manual(self):
-        client = MCPClient("python sandbox/swebench_server.py")
+        client = MCPClient("python sandbox/swebench_server.py", "")
         try:
             await client.connect_server()
         except Exception as e:
@@ -95,7 +95,8 @@ class SWEBenchAgent(AbstractAgent):
     def sandbox_exec(
             self,
             extracted_code: str,
-            container_name: str):
+            container_name: str,
+            task: SWEBenchTaskInput):
         server_path = 'src/swebench_server.py'
         docker_cmd = [
             "docker", "run", "--rm",
@@ -113,7 +114,8 @@ class SWEBenchAgent(AbstractAgent):
         return spawner.spawn(
             code=extracted_code,
             docker_cmd=docker_cmd,
-            task_type="swebench")
+            task_type="swebench",
+            task=task)
 
     def handle_task(self, task: SWEBenchTaskInput):
         task_start = time.time()
@@ -142,10 +144,13 @@ class SWEBenchAgent(AbstractAgent):
             print(f"Agent: {type(e).__name__}: {str(e)}")
             sys.exit(1)
         print("Executing in sandbox...")
-        result = self.sandbox_exec(extracted_code, container_name)
-        import pprint
+        result = self.sandbox_exec(
+            extracted_code=extracted_code,
+            container_name=container_name,
+            task=task)
         print(f"\nresult_{iteration_count}:")
-        pprint.pprint(result)
+        # import pprint
+        # pprint.pprint(result)
         step_metrics_list: List[StepMetrics] = []
         step_metrics = self.get_step_metrics(
             code=extracted_code,
@@ -173,7 +178,7 @@ class SWEBenchAgent(AbstractAgent):
                 )
             iteration_count += 1
             print(f"\n\nIteration {iteration_count}")
-            print(f"prompt: {prompt}")
+            # print(f"prompt: {prompt}")
             print(f"Calling {self.provider}...")
             call_metrics = self.call_llm(prompt)
             print("Response received")
@@ -188,7 +193,10 @@ class SWEBenchAgent(AbstractAgent):
                 print("Extracted code is None")
                 return None
             print("Executing in sandbox...")
-            result = self.sandbox_exec(extracted_code, container_name)
+            result = self.sandbox_exec(
+                extracted_code=extracted_code,
+                container_name=container_name,
+                task=task)
             # print(f"result_{iteration_count}:\n{result}")
             # result, code = self.sandbox_exec(
             #     llm_output=llm_output, test_list=task.test_list)
@@ -423,7 +431,7 @@ Files are in /testbed. Use search_code to find exact paths—do not guess.
 The Evaluation Script shows how your fix will be tested. Do NOT run it yourself.
 When using edit_file, match the exact indentation of old_str in new_str.
 When editing, include enough context in old_str to match only ONE location.
-After a successful edit, call final_answer(get_patch()) immediately.
+Once print(run_tests()) indicates success, call final_answer(get_patch()) immediately.
 Check for commented-out fixes in the traceback.
 Output only one code block per response.
 

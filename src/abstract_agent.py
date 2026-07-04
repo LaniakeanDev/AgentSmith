@@ -59,7 +59,7 @@ class AbstractAgent:
         if len(split_provider_model) != 2 or split_provider_model[0] \
                 not in PROVIDERS_KEY_CONST_MAP:
             print(f"WARNING: Provider/model invalid: {provider_model}")
-            self.provider = "gemini"
+            self.provider = "groq"
             print(f"Switching to {self.provider} instead")
             self.model_name = PROVIDERS_KEY_CONST_MAP[self.provider]["model"]
             self.provider_url = PROVIDERS_KEY_CONST_MAP[self.provider]["url"]

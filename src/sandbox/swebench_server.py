@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict
 
 from mcp.server.fastmcp import FastMCP
 import fnmatch
@@ -10,6 +10,8 @@ import subprocess
 # Create an MCP server
 mcp = FastMCP("SWEBench", json_response=True)
 cwd = os.path.abspath(os.path.join(os.getcwd(), '..', 'testbed'))
+
+eval_script = os.environ.get('eval_script')
 
 
 # Add an addition tool
@@ -452,6 +454,74 @@ def get_patch() -> str | None:
     except Exception as e:
         print(f"Error getting patch: {type(e).__name__}: {str(e)}")
         return None
+
+
+@mcp.tool()
+def run_tests() -> Dict:
+    """
+    Execute bash script from eval_script env var.
+    Returns {stdout, stderr, exit_code, success}.
+    """
+    try:
+        process = subprocess.Popen(
+            ["bash"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            cwd=cwd,
+            env={**os.environ}
+        )
+        # Send the script to bash's stdin with a timeout
+        stdout, stderr = process.communicate(input=eval_script, timeout=30)
+        return {
+            'stdout': stdout,
+            'stderr': stderr,
+            'exit_code': process.returncode,
+            'success': process.returncode == 0
+        }
+        # retval = {
+        #     'stdout': stdout,
+        #     'stderr': stderr,
+        #     'exit_code': process.returncode,
+        #     'success': process.returncode == 0
+        # }
+        # print(retval)
+        # return retval
+    except subprocess.TimeoutExpired:
+        process.kill()  # Kill the hung process
+        stdout, stderr = process.communicate()  # Get any remaining output
+        return {
+            'stdout': stdout,
+            'stderr': stderr + "\nERROR: Script execution timed out",
+            'exit_code': -1,
+            'success': False,
+            'error': 'Timeout expired'
+        }
+    except FileNotFoundError as e:
+        return {
+            'stdout': '',
+            'stderr': f"bash command not found: {str(e)}",
+            'exit_code': -1,
+            'success': False,
+            'error': 'bash not found'
+        }
+    except PermissionError as e:
+        return {
+            'stdout': '',
+            'stderr': f"Permission denied: {str(e)}",
+            'exit_code': -1,
+            'success': False,
+            'error': 'Permission denied'
+        }
+    except Exception as e:
+        return {
+            'stdout': '',
+            'stderr': f"Unexpected error: {str(e)}",
+            'exit_code': -1,
+            'success': False,
+            'error': str(e)
+        }
 
 
 @mcp.tool()
