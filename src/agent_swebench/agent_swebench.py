@@ -1,26 +1,15 @@
 import asyncio
-# import re
 import subprocess
 import sys
-# from typing import List
 import re
 import time
 from typing import List
 from abstract_agent import AbstractAgent
-# from agent_mbpp.mbpp_models import (
-#     CallMetrics, MBPPTaskInput, SolutionOutput, StepMetrics)
-# import requests
-# import time
-# import os
-# from dotenv import load_dotenv
 from abstract_spawner import Spawner
 from models import CallMetrics
 from sandbox.mcp_client import MCPClient
 from sandbox.sandbox_models import ExecutionResult, SandboxConfig
 from .swebench_models import StepMetrics, SWEBenchTaskInput, SolutionOutput
-# from sandbox.sandbox_models import ExecutionResult, SandboxConfig
-# from sandbox.spawner import Spawner
-# from groq import Groq
 
 
 class SWEBenchAgent(AbstractAgent):
@@ -36,6 +25,9 @@ class SWEBenchAgent(AbstractAgent):
         self.config = config
         self.og_prompt = ""
         self.prompt_ext = ""
+        self.image_name: str | None = None
+        self.container_name: str | None = None
+        self.iteration = 0
         # self.get_sandbox_manual()
 
     async def get_sandbox_manual(self):
@@ -57,13 +49,6 @@ class SWEBenchAgent(AbstractAgent):
         # print(f"Manual retrieved:\n{manual}")
         await client.cleanup()
 
-    # def extract_code(self, llm_output: str) -> str | None:
-    #     pattern = r'```python\n(.*?)```'
-    #     matches = re.findall(pattern, llm_output, re.DOTALL)
-    #     if matches:
-    #         code = self.sanitize_code(matches[-1])  # Take the last one
-    #         return code
-    #     return None
     def extract_code(self, llm_output: str) -> str | None:
         pattern = r'```python\n(.*?)```'
         match = re.search(pattern, llm_output, re.DOTALL)
@@ -74,8 +59,8 @@ class SWEBenchAgent(AbstractAgent):
         else:
             return None
 
-    def build_image(self, task: SWEBenchTaskInput):
-        container_name = f"swebench_{task.instance_id}_{int(time.time())}"
+    def build_image(self, task: SWEBenchTaskInput) -> None:
+        self.image_name = f"swebench_{task.instance_id}_{int(time.time())}"
         base_image = task.docker_image
         if not base_image.startswith(("docker.io/", "quay.io/", "ghcr.io/", "gcr.io/")):
             base_image = f"docker.io/{base_image}"
@@ -83,41 +68,87 @@ class SWEBenchAgent(AbstractAgent):
             "docker", "build",
             "--build-arg", f"BASE_IMAGE={base_image}",
             "--network=host",
-            "-t", container_name,
+            "-t", self.image_name,
             "-f", "Dockerfile.swebench",
             "./src/sandbox"
         ], capture_output=True, text=True)
         if build_result.returncode != 0:
             raise RuntimeError(f"Build failed: {build_result.stderr}")
-        print(f"Image built: {container_name}")
-        return container_name
+        print(f"Image built: {self.image_name}")
+
+    def no_extracted_code_retry(self, prompt: str) -> str:
+        message = "No code block was detected in your previous response"
+        prompt = self.get_new_prompt(
+            prompt=prompt,
+            code="No code could be extracted",
+            iteration=self.iteration,
+            message=message
+            )
+        self.iteration += 1
+        print(f"\n\nIteration {self.iteration}")
+        # print(f"prompt: {prompt}")
+        print(f"Calling {self.provider}...")
+        call_metrics = self.call_llm(prompt)
+        print("Response received")
+        llm_output = call_metrics.llm_output.strip()
+        print(f"llm_output:\n{llm_output}\n")
+        extracted_code = self.extract_code(llm_output)
+        print(f"extracted_code:\n{extracted_code}")
+        return extracted_code
 
     def sandbox_exec(
             self,
             extracted_code: str,
-            container_name: str,
             task: SWEBenchTaskInput):
         server_path = 'src/swebench_server.py'
+        self.container_name = f"{self.image_name}_run_{self.iteration}"
         docker_cmd = [
-            "docker", "run", "--rm",
-            # "--network=none"
+            "docker", "run",
+            "--name", self.container_name,
+            # "--rm",
+            "--network=none",
             "--cap-drop=ALL",
             "--security-opt=no-new-privileges",
             "--pids-limit=64",
             f"--memory={self.config.max_memory_mb}m",
             "--cpus=1",
             "-i",
-            container_name,
+            self.image_name,
             "python", "-m", "sandbox_swebench"
         ]
         spawner = Spawner(self.config, server_path)
-        return spawner.spawn(
+        exec_result = spawner.spawn(
             code=extracted_code,
             docker_cmd=docker_cmd,
             task_type="swebench",
-            task=task)
+            task=task,
+            container_name=self.container_name)
+        if exec_result.success or exec_result.final_answer:
+            new_image = f"{self.image_name}_iter{self.iteration}"
+            commit_result = subprocess.run([
+                "docker", "commit",
+                self.container_name,
+                new_image
+            ], capture_output=True, text=True)
+            if commit_result.returncode != 0:
+                raise RuntimeError(f"Commit failed: {commit_result.stderr}")
+            subprocess.run(["docker", "rm", "-f", self.container_name],
+                           capture_output=True, text=True)
+            remove_result = subprocess.run([
+                "docker", "rmi", "-f",
+                self.image_name
+            ], capture_output=True, text=True)
+            if remove_result.returncode != 0:
+                raise RuntimeError(f"Removing failed: {remove_result.stderr}")
+            self.image_name = new_image
+        else:
+            subprocess.run(
+                ["docker", "rm", "-f", self.container_name],
+                capture_output=True, text=True)
+        return exec_result
 
     def handle_task(self, task: SWEBenchTaskInput):
+        step_metrics_list: List[StepMetrics] = []
         task_start = time.time()
         prompt = self.get_prompt(task)
         # print(f"\n\nprompt:\n\n{prompt}\n\n")
@@ -131,37 +162,50 @@ class SWEBenchAgent(AbstractAgent):
         extracted_code = self.extract_code(llm_output)
         print(f"extracted_code:\n{extracted_code}")
         # sys.exit(0)
-        iteration_count = 1
+        self.iteration = 1
         while extracted_code is None and \
-                iteration_count <= self.max_iterations:
-            # no python code found in answer
-            # send feedback, retry
-            print("Extracted code is None")
-            return None
+                self.iteration < self.max_iterations:
+            extracted_code = self.no_extracted_code_retry(prompt)
+        if extracted_code is None:
+            task_duration = time.time() - task_start
+            return SolutionOutput(
+                task_id=str(task.instance_id),
+                benchmark="swebench",
+                success=False,
+                solution="Maximum number of iterations hit, no extracted code",
+                system_prompt=prompt,
+                iterations=self.iteration,
+                total_requests=sum(
+                    met.retries + 1 for met in step_metrics_list),
+                total_input_tokens=sum(
+                    met.input_tokens for met in step_metrics_list),
+                total_output_tokens=sum(
+                    met.output_tokens for met in step_metrics_list),
+                total_time_seconds=task_duration,
+                steps=step_metrics_list,
+                error="No extracted code"
+            )
         try:
-            container_name = self.build_image(task)
+            self.build_image(task)
         except Exception as e:
             print(f"Agent: {type(e).__name__}: {str(e)}")
             sys.exit(1)
         print("Executing in sandbox...")
         result = self.sandbox_exec(
             extracted_code=extracted_code,
-            container_name=container_name,
             task=task)
-        print(f"\nresult_{iteration_count}:")
+        print(f"\nresult_{self.iteration}:")
         # import pprint
         # pprint.pprint(result)
-        step_metrics_list: List[StepMetrics] = []
         step_metrics = self.get_step_metrics(
             code=extracted_code,
             result=result,
             call_metrics=call_metrics,
-            iteration_count=iteration_count
+            iteration=self.iteration
         )
         step_metrics_list.append(step_metrics)
-        extracted_code
         while result.final_answer is None and \
-                iteration_count < self.max_iterations:
+                self.iteration < self.max_iterations:
             exec_output = result.output
             if result.success:
                 message = f"Execution completed:"\
@@ -172,12 +216,11 @@ class SWEBenchAgent(AbstractAgent):
             prompt = self.get_new_prompt(
                 prompt=prompt,
                 code=extracted_code,
-                exec_output=exec_output,
-                iteration_count=iteration_count,
+                iteration=self.iteration,
                 message=message
                 )
-            iteration_count += 1
-            print(f"\n\nIteration {iteration_count}")
+            self.iteration += 1
+            print(f"\n\nIteration {self.iteration}")
             # print(f"prompt: {prompt}")
             print(f"Calling {self.provider}...")
             call_metrics = self.call_llm(prompt)
@@ -187,27 +230,45 @@ class SWEBenchAgent(AbstractAgent):
             extracted_code = self.extract_code(llm_output)
             print(f"extracted_code:\n{extracted_code}")
             while extracted_code is None and \
-                    iteration_count <= self.max_iterations:
-                # no python code found in answer
-                # send feedback, retry
-                print("Extracted code is None")
-                return None
+                    self.iteration < self.max_iterations:
+                extracted_code = self.no_extracted_code_retry(prompt)
+            if extracted_code is None:
+                task_duration = time.time() - task_start
+                return SolutionOutput(
+                    task_id=str(task.instance_id),
+                    benchmark="swebench",
+                    success=False,
+                    solution="Maximum number of iterations hit, no extracted code",
+                    system_prompt=prompt,
+                    iterations=self.iteration,
+                    total_requests=sum(
+                        met.retries + 1 for met in step_metrics_list),
+                    total_input_tokens=sum(
+                        met.input_tokens for met in step_metrics_list),
+                    total_output_tokens=sum(
+                        met.output_tokens for met in step_metrics_list),
+                    total_time_seconds=task_duration,
+                    steps=step_metrics_list,
+                    error="No extracted code"
+                )
             print("Executing in sandbox...")
             result = self.sandbox_exec(
                 extracted_code=extracted_code,
-                container_name=container_name,
                 task=task)
-            # print(f"result_{iteration_count}:\n{result}")
+            # print(f"result_{self.iteration}:\n{result}")
             # result, code = self.sandbox_exec(
             #     llm_output=llm_output, test_list=task.test_list)
             step_metrics = self.get_step_metrics(
                 code=extracted_code,
                 result=result,
                 call_metrics=call_metrics,
-                iteration_count=iteration_count
+                iteration=self.iteration
             )
             step_metrics_list.append(step_metrics)
         task_duration = time.time() - task_start
+        # subprocess.run(
+        #     ["docker", "rm", "-f", self.container_name],
+        #     capture_output=True, text=True)
         if not result.final_answer:
             print("Could not solve this problem")
             return SolutionOutput(
@@ -216,7 +277,7 @@ class SWEBenchAgent(AbstractAgent):
                 success=False,
                 solution="Solution not found",
                 system_prompt=prompt,
-                iterations=iteration_count,
+                iterations=self.iteration,
                 total_requests=sum(
                     met.retries + 1 for met in step_metrics_list),
                 total_input_tokens=sum(
@@ -237,7 +298,7 @@ class SWEBenchAgent(AbstractAgent):
                 success=True,
                 solution=result.final_answer,
                 system_prompt=prompt,
-                iterations=iteration_count,
+                iterations=self.iteration,
                 total_requests=sum(
                     met.retries + 1 for met in step_metrics_list),
                 total_input_tokens=sum(
@@ -249,181 +310,6 @@ class SWEBenchAgent(AbstractAgent):
             )
 
     def get_prompt(self, task: SWEBenchTaskInput):
-#         return f"""
-# # SWE-bench Agent System Prompt
-
-# **Role:** You are an expert software engineer AI, specialized in debugging, navigating, and fixing code in large, unfamiliar codebases. Your goal is to resolve the given issue by producing a correct and minimal `git` patch.
-
-# **Context:** You have been given a task from the SWE-bench dataset. You are working inside a Docker container that contains the target repository. You have a set of tools available to you to explore the codebase, run tests, and make changes.
-
-# ---
-
-# ## Core Principles
-
-# 1.  **Iterative Reasoning:** You must follow a strict **Thought -> Code -> Observation** loop. In each iteration, you will:
-#     - **Thought:** Provide a clear, concise explanation of your plan for this step. What are you trying to learn or achieve?
-#     - **Code:** Write Python code that uses the available tools to execute your plan.
-#     - **Observation:** (Provided automatically by the system) You will then receive the output of your code. Use this to inform your next thought.
-
-# 2.  **Persistence & Exploration:** Do not give up. If a plan fails, analyze the output, adjust your hypothesis, and try a new approach. Be methodical and persistent.
-
-# 3.  **Efficiency:** Be mindful of resource limits (iterations, tokens, time). Each action should have a clear purpose. Avoid aimless searching.
-
-# 4.  **Self-Correction:** If you encounter an error (syntax error, tool failure, etc.), you will receive the error output. Acknowledge the error, analyze its cause, and correct it in your next step. Do not ignore errors.
-
-# 5.  **Minimalism:** When you find the fix, make the smallest change possible to resolve the issue. The goal is to create a clean, minimal patch that passes the test suite.
-
-# ---
-
-# ## Tools Available
-
-# You have access to the following tools, which you can call as Python functions in your code block. For details on parameters, refer to the generated manual.
-
-# {self.mcp_manual}
-
-
-# ## Authorized Imports
-
-# You are authorized to use only the following imports:
-
-# {self.authorized_imports}
-
-# ---
-
-# ## Workflow & Strategy Recommendations
-
-# 1.  **Understand the Problem:** Start by carefully reading the `problem_statement`. Identify the core issue. What is the expected behavior? What is the actual behavior?
-
-# 2.  **Initial Exploration:**
-#     - Use `search_code` to find keywords from the problem statement (e.g., function names, error messages).
-#     - Use `read_file` to examine any suspect files you find.
-#     - Use `run_command` to understand the repository structure (e.g., `ls -la`, `git log --oneline`).
-#     - Your goal in the first few iterations is to locate the most relevant file(s) and the specific function(s) likely to be the source of the bug.
-
-# 3.  **Formulate a Hypothesis:**
-#     - Based on your exploration, what do you think is wrong with the code?
-#     - Is it a logic error? A type mismatch? A missing edge case? An incorrect API call?
-#     - Plan a specific change to test your hypothesis.
-
-# 4.  **Test and Iterate:**
-#     - You can test your hypothesis without running the full test suite.
-#     - For example, use `read_file` to view the logic around a suspected area.
-#     - If your hypothesis suggests a simple fix, use `edit_file` to apply the change.
-#     - **Do not run `run_tests()` prematurely.** It can be slow and consume resources. It is a last step for verification of a complete fix.
-
-# 5.  **Finalize and Submit:**
-#     - Once you have a change that you believe fixes the issue, run `run_tests()`.
-#     - If the tests pass, immediately call `get_patch()` and then `final_answer()` with the patch string.
-#     - **DO NOT GENERATE CODE THAT IS NOT YOUR OWN.** If you find a solution in a PR or issue, you must use the `edit_file` tool to implement the change yourself, demonstrating exploration and reasoning.
-
-# ---
-
-# ## Response Format
-
-# Your response must be structured as follows. The **Thought** and **Code** sections are required in every iteration.
-
-# ```
-# Thought:
-# [Your clear, concise reasoning for this step. What do you plan to do and why?]
-
-# Code:
-# ```python
-# # Your Python code using the available tools.
-# # Example:
-# result = search_code("validate_email")
-# print(result)
-# ```
-# ```
-
-# **Crucial Rules for the Code Block:**
-# - The entire code block must be valid Python code. Everything inside the ````python ... ```` block is what will be executed.
-# - **Do not include any commentary outside of the `Thought:` and `Code:` blocks.**
-# - **Do not include prompts, additional instructions, or conversational text.**
-# - Your final code block must end with a line that provides a useful observation, like printing a variable or the result of a function call. This will be captured and provided back to you as the "Observation".
-
-# ---
-
-# ## Example of a Good Turn
-
-# **Thought:**
-# The problem statement mentions an error when parsing dates in `YYYY-MM-DD` format. I will search for the function named `parse_date` to see its implementation, as it is likely the source of the bug.
-
-# **Code:**
-# ```python
-# definition = search_function_or_class_definition_in_code("parse_date")
-# print(definition)
-# ```
-
-# ## Task
-# ### Problem Statement
-# {task.problem_statement}
-
-# ### Hints
-# {task.hints_text}
-
-# ### Evaluation Script
-# ```python
-# {task.eval_script}
-# ```
-# """
-
-
-#         return f"""
-# # SWE-bench Agent
-
-# You are an expert software engineer. Produce the smallest correct git patch.
-
-# Workflow:
-# 1. Read the problem statement, traceback, and failing code.
-# 2. Form a concrete hypothesis.
-# 3. Make the smallest plausible patch immediately.
-# 4. Search elsewhere only if the hypothesis fails.
-# 5. Run the provided tests and submit the patch.
-
-# Rules:
-# - Keep changes minimal.
-# - Strictly one Python code block per response.
-# - A plausible hypothesis is sufficient for the first patch.
-# - Prefer modifying existing logic over adding new code.
-# - Use the traceback and regression test as primary clues.
-# - Avoid broad repository exploration.
-# - Do not repeat searches or reread unchanged code.
-
-# Each response must contain:
-
-# Thought:
-# Observation:
-# Hypothesis:
-# Next action:
-
-# Code:
-# ```python
-# # valid Python
-# ...
-
-# When the tests pass, call:
-# final_answer(get_patch())
-
-# **Tools:**
-# {self.mcp_manual}
-
-# **Authorized imports:**
-# {self.authorized_imports}
-
-# ---
-
-# ## Task
-# ### Problem Statement
-# {task.problem_statement}
-
-# ### Hints
-# {task.hints_text}
-
-# ### Evaluation Script
-# ```python
-# {task.eval_script}
-# ```
-# """
         return f"""
 Fix a bug in /testbed. The functions below are PRE-LOADED—call them directly.
 Do NOT import the library you are fixing. Do NOT define functions with def.
@@ -466,7 +352,7 @@ final_answer(patch) must be called alone
             result: ExecutionResult,
             code: str,
             call_metrics: CallMetrics,
-            iteration_count: int
+            iteration: int
             ) -> StepMetrics:
         if result.final_answer:
             sandbox_output = result.final_answer
@@ -478,7 +364,7 @@ final_answer(patch) must be called alone
         else:
             sandbox_output = result.error
         return StepMetrics(
-            step=iteration_count,
+            step=iteration,
             input_tokens=call_metrics.input_tokens,
             output_tokens=call_metrics.output_tokens,
             request_time_ms=call_metrics.request_time_ms,

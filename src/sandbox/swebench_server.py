@@ -205,6 +205,9 @@ def edit_file(filepath: str,
 
     Returns:
         Dict with 'success' and 'message', or None on critical error
+    Usage:
+        result = edit_file(...)
+        print(result)
     """
     # Validate inputs
     if not old_str:
@@ -262,16 +265,19 @@ def edit_file(filepath: str,
 
 
 @mcp.tool()
-def search_function_or_class_definition_in_code(name: str) -> str:
+def search_function_or_class_definition_in_code(name: str) -> str | None:
     """
     Find the definition of a function or class in Python files.
 
     Args:
         name: The name of the function or class to find
+        name must be the bare function or class name,
+        e.g. __add__, not a qualified path like ClassName.method_name.
 
     Returns:
         Formatted string with definitions following the format:
         /absolute/path/to/file.py:<line_number> <line_content>
+        Returns None if no definition is found.
     """
     if not name:
         return None
@@ -311,11 +317,11 @@ def search_function_or_class_definition_in_code(name: str) -> str:
                 except (UnicodeDecodeError, PermissionError, OSError):
                     continue
         if not results:
-            return f"No results for search: {name}"
+            return None
         return '\n'.join(results)
     except Exception as e:
         print(f"Search error: {type(e).__name__}: {str(e)}")
-        return f"No results for search: {name}"
+        return None
 
 
 @mcp.tool()
@@ -474,20 +480,26 @@ def run_tests() -> Dict:
         )
         # Send the script to bash's stdin with a timeout
         stdout, stderr = process.communicate(input=eval_script, timeout=30)
+        all_tests_passed = True
+        if 'tests finished' in stdout:
+            for line in stdout.split('\n'):
+                if 'tests finished' in line:
+                    # Check if any failures or exceptions reported
+                    if 'exceptions' in line and '0 exceptions' not in line:
+                        all_tests_passed = False
+                    elif 'failed' in line and '0 failed' not in line:
+                        all_tests_passed = False
+                    break
+        if len(stdout) > 100:
+            stdout = stdout[:100] + "(truncated)"
+        if len(stderr) > 100:
+            stderr = stderr[:100] + "(truncated)"
         return {
             'stdout': stdout,
             'stderr': stderr,
             'exit_code': process.returncode,
-            'success': process.returncode == 0
+            'all_tests_passed': all_tests_passed
         }
-        # retval = {
-        #     'stdout': stdout,
-        #     'stderr': stderr,
-        #     'exit_code': process.returncode,
-        #     'success': process.returncode == 0
-        # }
-        # print(retval)
-        # return retval
     except subprocess.TimeoutExpired:
         process.kill()  # Kill the hung process
         stdout, stderr = process.communicate()  # Get any remaining output

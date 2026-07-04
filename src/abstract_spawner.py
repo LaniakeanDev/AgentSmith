@@ -60,7 +60,8 @@ class Spawner:
             code: str,
             docker_cmd: List[str],
             task_type: str,
-            task: SWEBenchTaskInput
+            task: SWEBenchTaskInput,
+            container_name: str
               ) -> ExecutionResult:
         """Execute LLM-generated code in restricted environment"""
         self.exec_count += 1
@@ -70,19 +71,6 @@ class Spawner:
             "task_type": task_type,
             "eval_script": task.eval_script
         }
-        # docker_cmd = [
-        #     "docker", "run",
-        #     "--rm",
-        #     # "--network=none"
-        #     "--cap-drop=ALL",
-        #     "--security-opt=no-new-privileges",
-        #     "--pids-limit=64",
-        #     f"--memory={self.config.max_memory_mb}m",
-        #     "--cpus=1",
-        #     "-i",
-        #     "sandbox-image",
-        #     "uv", "run", "python", "-m", "sandbox_mbpp"
-        # ]
         try:
             result = subprocess.run(
                 docker_cmd,
@@ -91,14 +79,9 @@ class Spawner:
                 capture_output=True,
                 timeout=self.config.max_execution_time_seconds
             )
-            # import pprint
-            # print("\n\nResults of sandbox execution:\n")
-            # pprint.pprint(result)
             try:
                 output_data = json.loads(result.stdout)
                 if output_data["success"] and "final_answer" in output_data:
-                    # import pprint
-                    # pprint.pprint(output_data)
                     return ExecutionResult(
                         success=True,
                         final_answer=output_data["final_answer"],
@@ -134,11 +117,7 @@ class Spawner:
                       f"{self.config.max_execution_time_seconds} seconds",
             )
         except KeyboardInterrupt:
-            return ExecutionResult(
-                success=False,
-                output="\nUser interrupted execution",
-                error="\nUser interrupted execution",
-            )
+            raise
         except Exception as e:
             return ExecutionResult(
                 success=False,
