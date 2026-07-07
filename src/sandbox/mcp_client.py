@@ -3,7 +3,7 @@ import asyncio
 import os
 import shlex
 import sys
-from typing import Optional
+from typing import Optional, List
 from contextlib import AsyncExitStack
 
 from mcp import ClientSession, StdioServerParameters
@@ -11,7 +11,12 @@ from mcp.client.stdio import stdio_client
 
 
 class MCPClient:
-    def __init__(self, mcp_cmd: str, eval_script: str | None):
+    def __init__(
+        self,
+        mcp_cmd: str,
+        eval_script: str | None,
+        test_list: List[str] | None = None
+        ):
         self.mcp_cmd = mcp_cmd
         self.session: Optional[ClientSession] = None
         self.exit_stack: Optional[AsyncExitStack] = None
@@ -21,6 +26,7 @@ class MCPClient:
         self.write_stream = None
         self.messages = ""
         self.eval_script = eval_script
+        self.test_list = test_list
         # try:
         #     self.spawn_server()
         # except Exception:
@@ -42,11 +48,23 @@ class MCPClient:
             os.path.join(PROJECT_ROOT, a) if not os.path.isabs(a) and a.endswith(".py") else a
             for a in args
         ]
-        server_params = StdioServerParameters(
-            command=command,
-            args=args,
-            env={"eval_script": self.eval_script}
-        )
+        if self.eval_script is not None:
+            server_params = StdioServerParameters(
+                command=command,
+                args=args,
+                env={"eval_script": self.eval_script}
+            )
+        elif self.test_list is not None:
+            server_params = StdioServerParameters(
+                command=command,
+                args=args,
+                env={"test_list": self.test_list}
+            )
+        else:
+            server_params = StdioServerParameters(
+                command=command,
+                args=args,
+            )
         try:
             # Start the server and connect to it
             stdio_transport = await self.exit_stack.enter_async_context(
@@ -73,7 +91,7 @@ class MCPClient:
             await self.cleanup()
             raise Exception(
                 f"Failed to connect to server: {type(e).__name__}: "
-                f"{str(e)}")
+                f"{str(e)}, cmd: {self.mcp_cmd}")
 
     async def cleanup(self):
         """Clean up resources"""
@@ -150,7 +168,7 @@ class MCPClient:
                             f"argument(s): {', '.join(overlap)}"
                         )
                     call_kwargs.update(kwargs)
-                    result = asyncio.get_event_loop().run_until_complete(
+                    result = asyncio.run(
                         self.session.call_tool(tool.name, call_kwargs)
                     )
                     return "\n".join(

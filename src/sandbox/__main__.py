@@ -23,8 +23,10 @@ class Sandbox:
             if self.config.mcp_command is None:
                 if task_type == 'mbpp':
                     self.config.mcp_command = DEFAULT_MCP_CMD_MBPP
-                else:
+                elif task_type == 'mbpp':
                     self.config.mcp_command = DEFAULT_MCP_CMD_SWEB
+                else:
+                    self.config.mcp_command = "uv run python sandbox/fastmcp_server.py"
             self.code = inputs["code"]
             if "eval_script" in inputs:
                 self.eval_script = inputs["eval_script"]

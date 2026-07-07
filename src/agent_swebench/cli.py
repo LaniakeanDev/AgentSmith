@@ -37,7 +37,7 @@ class SWEBenchCli:
             agent = SWEBenchAgent(
                 provider_model=model_name, provider_url=provider_url,
                 max_iterations=max_iterations, config=config)
-            asyncio.get_event_loop().run_until_complete(
+            asyncio.run(
                 agent.get_sandbox_manual()
             )
             solution = agent.handle_task(task)

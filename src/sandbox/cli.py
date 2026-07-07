@@ -4,7 +4,7 @@ from .sandbox_models import SandboxConfig
 import json
 import sys
 from .spawner import Spawner
-
+import subprocess
 
 class SandboxCLI:
     """Command-line interface for the sandbox tool"""
@@ -19,10 +19,10 @@ class SandboxCLI:
             print("You did not enter any code for the sandbox")
             sys.exit(0)
         config = get_config(config_path)
-        sandbox = Spawner(
+        spawner = Spawner(
             config=config, server_path=None, mcp_command=mcp_command)
-        sandbox.configure()
-        exec_through_sandbox(sandbox=sandbox, code=code)
+        # sandbox.configure()
+        exec_through_sandbox(spawner=spawner, code=code)
 
     def execute(
             self, code,
@@ -33,13 +33,41 @@ class SandboxCLI:
             print("You did not enter any code for the sandbox")
             sys.exit(0)
         config = get_config(config_path)
-        sandbox = Spawner(config=config, server_path=server_path)
-        sandbox.configure()
-        exec_through_sandbox(sandbox=sandbox, code=code)
+        spawner = Spawner(config=config, server_path=server_path)
+        # sandbox.configure()
+        exec_through_sandbox(spawner=spawner, code=code)
 
 
-def exec_through_sandbox(sandbox: Spawner, code: str):
-    result = sandbox.spawn(code)
+def build_image() -> None:
+    build_result = subprocess.run([
+        "docker", "build",
+        "--network=host",
+        "-t", "sandbox-image",
+        "./src/sandbox"
+    ], capture_output=True, text=True)
+    if build_result.returncode != 0:
+        raise RuntimeError(f"Build failed: {build_result.stderr}")
+    print(f"Image built: sandbox-image")
+
+
+def exec_through_sandbox(spawner: Spawner, code: str):
+    docker_cmd = [
+        "docker", "run",
+        "--rm",
+        "--network=none",
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges",
+        "--pids-limit=64",
+        f"--memory={spawner.config.max_memory_mb}m",
+        "--cpus=1",
+        "-i",
+        "sandbox-image",
+        "uv", "run", "python", "-m", "sandbox"
+    ]
+    print("Building image...")
+    build_image()
+    print("Image built")
+    result = spawner.spawn(code, docker_cmd)
     if result.success:
         print("\n\nYour result:")
         print("-" * 12)

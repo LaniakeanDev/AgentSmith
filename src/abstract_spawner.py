@@ -12,6 +12,7 @@ import shlex
 class Spawner:
     def __init__(self,
                  config: SandboxConfig,
+                 task: SWEBenchTaskInput | MBPPTaskInput | None = None,
                  server_path: str | None = None,
                  mcp_command: str | None = None) -> None:
         self.loop = asyncio.new_event_loop()
@@ -59,19 +60,41 @@ class Spawner:
             self,
             code: str,
             docker_cmd: List[str],
-            task_type: str,
-            task: SWEBenchTaskInput,
-            container_name: str
+            # task_type: str,
+            # task: SWEBenchTaskInput,
+            # container_name: str
               ) -> ExecutionResult:
         """Execute LLM-generated code in restricted environment"""
+        print("DEBUG: spawner.spawn()")
+        if isinstance(self.task, MBPPTaskInput):
+            task_type = "mbpp"
+            test_list = self.task.test_list
+            subprocess_inputs = {
+                "config": self.config.model_dump(),
+                "code": code,
+                "task_type": task_type,
+                "test_list": task.test_list
+            }
+            print("MBPP task. To be refactored")
+            sys.exit(0)
+        elif isinstance(self.task, SWEBenchTaskInput):
+            task_type = "swebench"
+            subprocess_inputs = {
+                "config": self.config.model_dump(),
+                "code": code,
+                "task_type": task_type,
+                "eval_script": task.eval_script
+            }
+        else:
+            task_type = "sandbox"
+            subprocess_inputs = {
+                "config": self.config.model_dump(),
+                "code": code,
+                "task_type": task_type,
+            }
         self.exec_count += 1
-        subprocess_inputs = {
-            "config": self.config.model_dump(),
-            "code": code,
-            "task_type": task_type,
-            "eval_script": task.eval_script
-        }
         try:
+            print("DEBUG: result = subprocess.run")
             result = subprocess.run(
                 docker_cmd,
                 input=json.dumps(subprocess_inputs),
@@ -79,6 +102,7 @@ class Spawner:
                 capture_output=True,
                 timeout=self.config.max_execution_time_seconds
             )
+            print("DEBUG: subprocess.run done")
             try:
                 output_data = json.loads(result.stdout)
                 if output_data["success"] and "final_answer" in output_data:

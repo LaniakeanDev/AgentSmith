@@ -69,7 +69,7 @@ class SWEBenchAgent(AbstractAgent):
             "--build-arg", f"BASE_IMAGE={base_image}",
             "--network=host",
             "-t", self.image_name,
-            "-f", "Dockerfile.swebench",
+            "-f", "./src/sandbox/Dockerfile.swebench",
             "./src/sandbox"
         ], capture_output=True, text=True)
         if build_result.returncode != 0:
@@ -100,6 +100,7 @@ class SWEBenchAgent(AbstractAgent):
             self,
             extracted_code: str,
             task: SWEBenchTaskInput):
+        print("DEBUG: sandbox_exec called")
         server_path = 'src/swebench_server.py'
         self.container_name = f"{self.image_name}_run_{self.iteration}"
         docker_cmd = [
@@ -116,7 +117,13 @@ class SWEBenchAgent(AbstractAgent):
             self.image_name,
             "python", "-m", "sandbox_swebench"
         ]
-        spawner = Spawner(self.config, server_path)
+        spawner = Spawner(
+            config=self.config,
+            task=task,
+            server_path=server_path,
+            mcp_command=mcp_command
+            )
+        print("DEBUG: exec_result = spawner.spawn")
         exec_result = spawner.spawn(
             code=extracted_code,
             docker_cmd=docker_cmd,
