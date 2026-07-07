@@ -3,27 +3,37 @@ import asyncio
 import json
 import os
 import sys
-from .sandbox_models import SandboxConfig, FinalAnswer
-from .execute import execute
+from sandbox_models import SandboxConfig, FinalAnswer
+from test_execute import execute
 from pydantic import ValidationError
-from .constants import safe_builtins
+from constants import safe_builtins
 import traceback
-from .constants import DEFAULT_MCP_CMD_MBPP, DEFAULT_MCP_CMD_SWEB, DEFAULT_MCP_CMD
-from .mcp_client import MCPClient
+from constants import DEFAULT_MCP_CMD_MBPP, DEFAULT_MCP_CMD_SWEB, DEFAULT_MCP_CMD
+from mcp_client import MCPClient
 
 
 class Sandbox:
     def __init__(self):
         self.output = ""
-        input_data = sys.stdin.read()
+        # input_data = sys.stdin.read()
         try:
-            inputs = json.loads(input_data)
+            # inputs = json.loads(input_data)
+            inputs = {
+                "config": SandboxConfig(),
+                "task_type": "swebench",
+                "code": """filepath = "/testbed/django/contrib/contenttypes/management/__init__.py"
+old_str = "        content_type.save(update_fields={'model'})"
+new_str = "        content_type.save(using=db, update_fields={'model'})"
+result = edit_file(filepath, old_str, new_str)
+print(result)""",
+                "eval_script": ""
+            }
             self.config = SandboxConfig.model_validate(inputs["config"])
             task_type = inputs["task_type"]
             if self.config.mcp_command is None:
                 if task_type == 'mbpp':
                     self.config.mcp_command = DEFAULT_MCP_CMD_MBPP
-                elif task_type == 'mbpp':
+                elif task_type == 'swebench':
                     self.config.mcp_command = DEFAULT_MCP_CMD_SWEB
                 else:
                     self.config.mcp_command = DEFAULT_MCP_CMD
@@ -74,10 +84,12 @@ class Sandbox:
 
     def execute(self):
         try:
+            print("Executing...")
             result = execute(
                 code=self.code,
                 config=self.config,
                 restricted_globals=self.restricted_globals)
+            print("Execution complete")
             if result.output:
                 self.output += f"\nExecution ouput:\n{result.output}"
             if result.success and result.final_answer:
@@ -172,5 +184,7 @@ class Sandbox:
 
 
 if __name__ == '__main__':
+    print("Initialising the sandbox...")
     sandbox = Sandbox()
+    print("Sandbox initialised")
     sandbox.execute()

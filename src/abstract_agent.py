@@ -250,8 +250,8 @@ class AbstractAgent:
     def get_new_prompt(
             self, prompt: str, code: str,
             iteration: int, message: str):
-        new_prompt = f"{prompt}\n\nIteration {iteration}:\nExecuted code:"
-        new_prompt += f"{code}" + '\n' + message + '\n'
+        new_prompt = f"{prompt}\n\nIteration {iteration}:\nExecuted code:\n"
+        new_prompt += f"```python\n{code}\n```\n{message}\n"
         new_prompt += "Think, then make the next iteration"
         return new_prompt
 

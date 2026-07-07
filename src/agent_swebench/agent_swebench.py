@@ -5,11 +5,13 @@ import re
 import time
 from typing import List
 from abstract_agent import AbstractAgent
-from abstract_spawner import Spawner
+from sandbox.spawner import Spawner
 from models import CallMetrics
 from sandbox.mcp_client import MCPClient
 from sandbox.sandbox_models import ExecutionResult, SandboxConfig
 from .swebench_models import StepMetrics, SWEBenchTaskInput, SolutionOutput
+from agent_mbpp.mbpp_models import MBPPTaskInput
+from agent_swebench.swebench_models import SWEBenchTaskInput
 
 
 class SWEBenchAgent(AbstractAgent):
@@ -18,7 +20,8 @@ class SWEBenchAgent(AbstractAgent):
             provider_model: str,
             provider_url: str,
             max_iterations: int,
-            config: SandboxConfig):
+            config: SandboxConfig,
+            mcp_command: str | None = None):
         super().__init__(provider_model, provider_url, max_iterations)
         self.mcp_manual: str | None = None
         self.authorized_imports = ""
@@ -28,6 +31,10 @@ class SWEBenchAgent(AbstractAgent):
         self.image_name: str | None = None
         self.container_name: str | None = None
         self.iteration = 0
+        if mcp_command is None:
+            self.mcp_command = "uv run python sandbox/swebench_server.py"
+        else:
+            self.mcp_command = mcp_command
         # self.get_sandbox_manual()
 
     async def get_sandbox_manual(self):
@@ -38,7 +45,7 @@ class SWEBenchAgent(AbstractAgent):
         self.authorized_imports = self.authorized_imports[:-2]
 
     async def get_mcp_manual(self):
-        client = MCPClient("python sandbox/swebench_server.py", "")
+        client = MCPClient(self.mcp_command, "")
         try:
             await client.connect_server()
         except Exception as e:
@@ -60,6 +67,7 @@ class SWEBenchAgent(AbstractAgent):
             return None
 
     def build_image(self, task: SWEBenchTaskInput) -> None:
+        print("building Image...")
         self.image_name = f"swebench_{task.instance_id}_{int(time.time())}"
         base_image = task.docker_image
         if not base_image.startswith(("docker.io/", "quay.io/", "ghcr.io/", "gcr.io/")):
@@ -99,7 +107,7 @@ class SWEBenchAgent(AbstractAgent):
     def sandbox_exec(
             self,
             extracted_code: str,
-            task: SWEBenchTaskInput):
+            task: SWEBenchTaskInput | MBPPTaskInput | None):
         print("DEBUG: sandbox_exec called")
         server_path = 'src/swebench_server.py'
         self.container_name = f"{self.image_name}_run_{self.iteration}"
@@ -115,21 +123,22 @@ class SWEBenchAgent(AbstractAgent):
             "--cpus=1",
             "-i",
             self.image_name,
-            "python", "-m", "sandbox_swebench"
+            "python", "-m", "sandbox"
         ]
         spawner = Spawner(
             config=self.config,
             task=task,
             server_path=server_path,
-            mcp_command=mcp_command
+            mcp_command=self.mcp_command
             )
         print("DEBUG: exec_result = spawner.spawn")
         exec_result = spawner.spawn(
             code=extracted_code,
             docker_cmd=docker_cmd,
-            task_type="swebench",
-            task=task,
-            container_name=self.container_name)
+            # task_type="swebench",
+            # task=task,
+            # container_name=self.container_name
+            )
         if exec_result.success or exec_result.final_answer:
             new_image = f"{self.image_name}_iter{self.iteration}"
             commit_result = subprocess.run([
@@ -155,6 +164,7 @@ class SWEBenchAgent(AbstractAgent):
         return exec_result
 
     def handle_task(self, task: SWEBenchTaskInput):
+        print("DEBUG: handle_task launched")
         step_metrics_list: List[StepMetrics] = []
         task_start = time.time()
         prompt = self.get_prompt(task)

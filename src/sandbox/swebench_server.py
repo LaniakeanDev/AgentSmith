@@ -490,10 +490,10 @@ def run_tests() -> Dict:
                     elif 'failed' in line and '0 failed' not in line:
                         all_tests_passed = False
                     break
-        if len(stdout) > 100:
-            stdout = stdout[:100] + "(truncated)"
-        if len(stderr) > 100:
-            stderr = stderr[:100] + "(truncated)"
+        if len(stdout) > 300:
+            stdout = stdout[:300] + "(truncated)"
+        if len(stderr) > 300:
+            stderr = stderr[:300] + "(truncated)"
         return {
             'stdout': stdout,
             'stderr': stderr,

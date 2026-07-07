@@ -1,5 +1,6 @@
 import asyncio
 # import subprocess
+import json
 import os
 import shlex
 import sys
@@ -142,13 +143,13 @@ class MCPClient:
         response = await self.session.list_tools()
         self.tools = response.tools
 
-    async def build_tool_wrappers(self) -> dict:
+    async def build_tool_wrappers(self, loop=None) -> dict:
         """Discover tools from MCP server and create callable wrappers."""
         await self.get_tools()
         wrappers = {}
         for tool in self.tools:
-            # Capture tool in closure to avoid late binding issue
-            def make_wrapper(tool):
+            # Capture tool and loop in closure to avoid late binding issue
+            def make_wrapper(tool, loop=loop):
                 # Parameter names in declared order, from the tool's JSON schema
                 param_names = list(tool.inputSchema.get("properties", {}).keys())
 
@@ -168,13 +169,36 @@ class MCPClient:
                             f"argument(s): {', '.join(overlap)}"
                         )
                     call_kwargs.update(kwargs)
-                    result = asyncio.run(
-                        self.session.call_tool(tool.name, call_kwargs)
-                    )
-                    return "\n".join(
+                    # Check if there's already a running event loop
+                    if loop is not None and not loop.is_running():
+                        # Use the existing loop (session is bound to it)
+                        result = loop.run_until_complete(
+                            self.session.call_tool(tool.name, call_kwargs)
+                        )
+                    elif loop is not None and loop.is_running():
+                        # Loop is running - schedule on it
+                        future = asyncio.run_coroutine_threadsafe(
+                            self.session.call_tool(tool.name, call_kwargs),
+                            loop
+                        )
+                        result = future.result(timeout=30)
+                    else:
+                        # No loop provided, create a new one
+                        result = asyncio.run(
+                            self.session.call_tool(tool.name, call_kwargs)
+                        )
+                    text = "\n".join(
                         block.text for block in result.content
                         if hasattr(block, "text")
                     )
+                    # Try to parse as JSON - return dict/list if valid JSON
+                    try:
+                        return json.loads(text)
+                    except (json.JSONDecodeError, TypeError, ValueError):
+                        # Return raw string for non-JSON responses
+                        return text
+                    except Exception:
+                        return "another exception happened"
                 wrapper.__name__ = tool.name
                 wrapper.__doc__ = tool.description
                 return wrapper

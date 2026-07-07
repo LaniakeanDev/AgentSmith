@@ -15,7 +15,8 @@ class Spawner:
                  config: SandboxConfig,
                  task: SWEBenchTaskInput | MBPPTaskInput | None = None,
                  server_path: str | None = None,
-                 mcp_command: str | None = None) -> None:
+                 mcp_command: str | None = None
+                 ) -> None:
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         self.config = config
@@ -70,14 +71,14 @@ class Spawner:
         print("DEBUG: spawner.spawn()")
         if isinstance(self.task, MBPPTaskInput):
             task_type = "mbpp"
-            test_list = self.task.test_list
             subprocess_inputs = {
                 "config": self.config.model_dump(),
                 "code": code,
                 "task_type": task_type,
-                "test_list": task.test_list
+                "test_list": self.task.test_list
             }
             print("MBPP task. To be refactored")
+            import sys
             sys.exit(0)
         elif isinstance(self.task, SWEBenchTaskInput):
             task_type = "swebench"
@@ -85,7 +86,7 @@ class Spawner:
                 "config": self.config.model_dump(),
                 "code": code,
                 "task_type": task_type,
-                "eval_script": task.eval_script
+                "eval_script": self.task.eval_script
             }
         else:
             task_type = "sandbox"

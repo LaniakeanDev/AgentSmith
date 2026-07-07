@@ -18,7 +18,7 @@ class SWEBenchCli:
         model_name: str,
         provider_url: str,
         # max_iterations: Optional[int] = 30,
-        max_iterations: Optional[int] = 8,
+        max_iterations: Optional[int] = 5,
         config: Optional[SandboxConfig] = SandboxConfig()
     ):
         """
@@ -37,9 +37,11 @@ class SWEBenchCli:
             agent = SWEBenchAgent(
                 provider_model=model_name, provider_url=provider_url,
                 max_iterations=max_iterations, config=config)
+            print("agent created")
             asyncio.run(
                 agent.get_sandbox_manual()
             )
+            print("about to ask for solution")
             solution = agent.handle_task(task)
             with open(output, 'w') as f:
                 f.write(solution.model_dump_json(indent=2))
