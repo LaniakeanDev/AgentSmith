@@ -68,7 +68,6 @@ class Spawner:
             # container_name: str
               ) -> ExecutionResult:
         """Execute LLM-generated code in restricted environment"""
-        print("DEBUG: spawner.spawn()")
         if isinstance(self.task, MBPPTaskInput):
             task_type = "mbpp"
             subprocess_inputs = {
@@ -97,7 +96,6 @@ class Spawner:
             }
         self.exec_count += 1
         try:
-            print("DEBUG: result = subprocess.run")
             result = subprocess.run(
                 docker_cmd,
                 input=json.dumps(subprocess_inputs),
@@ -105,7 +103,6 @@ class Spawner:
                 capture_output=True,
                 timeout=self.config.max_execution_time_seconds
             )
-            print("DEBUG: subprocess.run done")
             try:
                 output_data = json.loads(result.stdout)
                 if output_data["success"] and "final_answer" in output_data:

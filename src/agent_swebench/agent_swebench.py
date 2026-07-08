@@ -140,7 +140,6 @@ class SWEBenchAgent(AbstractAgent):
             self,
             extracted_code: str
             ) -> ExecutionResult:
-        print("DEBUG: sandbox_exec called")
         exec_cmd = [
             "docker", "exec", "-i", self.container_name, "python",
             "-m", "sandbox"]
@@ -150,7 +149,6 @@ class SWEBenchAgent(AbstractAgent):
         )
 
     def handle_task(self):
-        print("DEBUG: handle_task launched")
         self.step_metrics_list: List[StepMetrics] = []
         self.task_start = time.time()
         prompt = self.get_prompt()
