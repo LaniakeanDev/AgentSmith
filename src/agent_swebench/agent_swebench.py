@@ -1,4 +1,3 @@
-import asyncio
 import subprocess
 import sys
 import re
@@ -10,8 +9,7 @@ from models import CallMetrics
 from sandbox.mcp_client import MCPClient
 from sandbox.sandbox_models import ExecutionResult, SandboxConfig
 from .swebench_models import StepMetrics, SWEBenchTaskInput, SolutionOutput
-from agent_mbpp.mbpp_models import MBPPTaskInput
-from agent_swebench.swebench_models import SWEBenchTaskInput
+from llm_caller import LLMCaller
 
 
 class SWEBenchAgent(AbstractAgent):
@@ -43,6 +41,10 @@ class SWEBenchAgent(AbstractAgent):
             mcp_command=self.mcp_command
         )
         self.all_tests_passed = False
+        self.caller = LLMCaller(
+            provider="groq",
+            max_retries_per_key=3
+            )
 
     async def get_sandbox_manual(self):
         await self.get_mcp_manual()
@@ -125,8 +127,8 @@ class SWEBenchAgent(AbstractAgent):
         self.iteration += 1
         print(f"\n\nIteration {self.iteration}")
         # print(f"prompt: {prompt}")
-        print(f"Calling {self.provider}...")
-        call_metrics = self.call_llm(prompt)
+        # print(f"Calling {self.provider}...")
+        call_metrics = self.caller.call_llm(prompt)
         print("Response received")
         llm_output = call_metrics.llm_output.strip()
         print(f"llm_output:\n{llm_output}\n")
@@ -155,8 +157,8 @@ class SWEBenchAgent(AbstractAgent):
         # print(f"\n\nprompt:\n\n{prompt}\n\n")
         # sys.exit(0)
         print("\n\nIteration 1")
-        print(f"Calling {self.provider}...")
-        call_metrics = self.call_llm(prompt)
+        # print(f"Calling {self.provider}...")
+        call_metrics = self.caller.call_llm(prompt)
         print("Response received")
         llm_output = call_metrics.llm_output.strip()
         print(f"\n\nllm_output:\n{llm_output}\n")
@@ -226,8 +228,8 @@ class SWEBenchAgent(AbstractAgent):
                 self.iteration += 1
                 print(f"\n\nIteration {self.iteration}")
                 # print(f"prompt: {prompt}")
-                print(f"Calling {self.provider}...")
-                call_metrics = self.call_llm(prompt)
+                # print(f"Calling {self.provider}...")
+                call_metrics = self.caller.call_llm(prompt)
                 print("Response received")
                 llm_output = call_metrics.llm_output.strip()
                 print(f"llm_output:\n{llm_output}\n")
