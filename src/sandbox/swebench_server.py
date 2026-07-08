@@ -140,7 +140,7 @@ def search_code(pattern: str, file_pattern: str = "*") -> str | None:
         /absolute/path/to/file.py:<line_number> <line_content>
     """
     if not pattern:
-        return None
+        return "No search pattern given"
     # Default to current directory if no file_pattern specified
     search_dir = cwd
     # Parse file patterns
@@ -162,12 +162,23 @@ def search_code(pattern: str, file_pattern: str = "*") -> str | None:
                        ['node_modules', '__pycache__', 'venv', 'env', '.git',
                        'dist', 'build']]
             for file in files:
+                filepath = os.path.join(root, file)
+                abs_path = os.path.abspath(filepath)
+                rel_path = os.path.relpath(abs_path, search_dir)
                 # Check if file matches pattern
                 matches_file_pattern = False
                 for fp in file_patterns:
-                    if fnmatch.fnmatch(file, fp):
-                        matches_file_pattern = True
-                        break
+                    if '/' in fp or '\\' in fp:
+                        # path-qualified pattern: match against relative or absolute path
+                        if fnmatch.fnmatch(rel_path, fp) or fnmatch.fnmatch(
+                            abs_path, fp):
+                            matches_file_pattern = True
+                            break
+                    else:
+                        # simple glob: match against basename only
+                        if fnmatch.fnmatch(file, fp):
+                            matches_file_pattern = True
+                            break
                 if not matches_file_pattern:
                     continue
                 filepath = os.path.join(root, file)
@@ -185,11 +196,10 @@ def search_code(pattern: str, file_pattern: str = "*") -> str | None:
                     # Skip binary files, permission denied, etc.
                     continue
         if not results:
-            return None
+            return f"No results found for {pattern}"
         return '\n'.join(results)
     except Exception as e:
-        print(f"Search error: {type(e).__name__}: {str(e)}")
-        return None
+        return f"Search error: {type(e).__name__}: {str(e)}"
 
 
 @mcp.tool()
@@ -480,20 +490,21 @@ def run_tests() -> Dict:
         )
         # Send the script to bash's stdin with a timeout
         stdout, stderr = process.communicate(input=eval_script, timeout=30)
-        all_tests_passed = True
-        if 'tests finished' in stdout:
+        all_tests_passed = False
+        if 'tests finished' in stdout and process.returncode == 0:
             for line in stdout.split('\n'):
                 if 'tests finished' in line:
-                    # Check if any failures or exceptions reported
                     if 'exceptions' in line and '0 exceptions' not in line:
                         all_tests_passed = False
                     elif 'failed' in line and '0 failed' not in line:
                         all_tests_passed = False
+                    else:
+                        all_tests_passed = True
                     break
-        if len(stdout) > 300:
-            stdout = stdout[:300] + "(truncated)"
-        if len(stderr) > 300:
-            stderr = stderr[:300] + "(truncated)"
+        if len(stdout) > 1000:
+            stdout = stdout[:1000] + "(truncated)"
+        if len(stderr) > 1000:
+            stderr = stderr[:1000] + "(truncated)"
         return {
             'stdout': stdout,
             'stderr': stderr,
@@ -580,9 +591,9 @@ def run_command(
                 'stderr': '',
                 'exit_code': -1
             }
-        working_dir = str(workdir_path.absolute())
     else:
         workdir_path = Path(cwd)
+    working_dir = str(workdir_path.absolute())
     try:
         # Execute the command with shell=True for flexibility
         # Using shell=True allows for pipes, redirects, etc.

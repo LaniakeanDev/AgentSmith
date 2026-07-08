@@ -37,7 +37,7 @@ PROVIDERS_KEY_CONST_MAP = {
     "cerebras": {
         "key_name": 'CEREBRAS_API_KEY',
         "url": 'cerebras_url',
-        "model": 'cerebras/gemma-4-31b'
+        "model": 'cerebras/zai-glm-4.7'
         },
     "gemini": {
         "key_name": 'GEMINI_API_KEY',
@@ -59,7 +59,7 @@ class AbstractAgent:
         if len(split_provider_model) != 2 or split_provider_model[0] \
                 not in PROVIDERS_KEY_CONST_MAP:
             print(f"WARNING: Provider/model invalid: {provider_model}")
-            self.provider = "gemini"
+            self.provider = "cerebras"
             print(f"Switching to {self.provider} instead")
             self.model_name = PROVIDERS_KEY_CONST_MAP[self.provider]["model"]
             self.provider_url = PROVIDERS_KEY_CONST_MAP[self.provider]["url"]
@@ -159,6 +159,21 @@ class AbstractAgent:
             stream=False,
             reasoning_effort="medium"
         )
+        while response.choices[0].message.content is None:
+            print("Response is None. Retrying...")
+            response = client.chat.completions.create(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }],
+                model="gemma-4-31b",
+                max_completion_tokens=1024,
+                temperature=0.2,
+                top_p=1,
+                stream=False,
+                reasoning_effort="medium"
+            )
         call_metrics = CallMetrics(
             input_tokens=response.usage.prompt_tokens,
             output_tokens=response.usage.completion_tokens,
