@@ -59,7 +59,7 @@ class AbstractAgent:
         if len(split_provider_model) != 2 or split_provider_model[0] \
                 not in PROVIDERS_KEY_CONST_MAP:
             print(f"WARNING: Provider/model invalid: {provider_model}")
-            self.provider = "groq"
+            self.provider = "gemini"
             print(f"Switching to {self.provider} instead")
             self.model_name = PROVIDERS_KEY_CONST_MAP[self.provider]["model"]
             self.provider_url = PROVIDERS_KEY_CONST_MAP[self.provider]["url"]
@@ -248,11 +248,17 @@ class AbstractAgent:
         return code
 
     def get_new_prompt(
-            self, prompt: str, code: str,
-            iteration: int, message: str):
-        new_prompt = f"{prompt}\n\nIteration {iteration}:\nExecuted code:\n"
+            self,
+            prompt: str,
+            llm_output: str,
+            code: str,
+            iteration: int,
+            message: str
+            ):
+        new_prompt = f"{prompt}\n\nIteration {iteration}:\nYour output:\n\
+            {llm_output}Extracted and executed code (first block only):\n"
         new_prompt += f"```python\n{code}\n```\n{message}\n"
-        new_prompt += "Think, then make the next iteration"
+        new_prompt += "Think, then generate one single code block"
         return new_prompt
 
 

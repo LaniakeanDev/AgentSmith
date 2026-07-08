@@ -84,13 +84,14 @@ class SWEBenchAgent(AbstractAgent):
             raise RuntimeError(f"Build failed: {build_result.stderr}")
         print(f"Image built: {self.image_name}")
 
-    def no_extracted_code_retry(self, prompt: str) -> str:
+    def no_extracted_code_retry(self, prompt: str, llm_output: str) -> str:
         message = "No code block was detected in your previous response"
         prompt = self.get_new_prompt(
             prompt=prompt,
             code="No code could be extracted",
             iteration=self.iteration,
-            message=message
+            message=message,
+            llm_output=llm_output
             )
         self.iteration += 1
         print(f"\n\nIteration {self.iteration}")
@@ -182,7 +183,7 @@ class SWEBenchAgent(AbstractAgent):
         self.iteration = 1
         while extracted_code is None and \
                 self.iteration < self.max_iterations:
-            extracted_code = self.no_extracted_code_retry(prompt)
+            extracted_code = self.no_extracted_code_retry(prompt, llm_output)
         if extracted_code is None:
             task_duration = time.time() - task_start
             return SolutionOutput(
@@ -234,7 +235,8 @@ class SWEBenchAgent(AbstractAgent):
                 prompt=prompt,
                 code=extracted_code,
                 iteration=self.iteration,
-                message=message
+                message=message,
+                llm_output=llm_output
                 )
             self.iteration += 1
             print(f"\n\nIteration {self.iteration}")
@@ -248,14 +250,16 @@ class SWEBenchAgent(AbstractAgent):
             print(f"extracted_code:\n{extracted_code}")
             while extracted_code is None and \
                     self.iteration < self.max_iterations:
-                extracted_code = self.no_extracted_code_retry(prompt)
+                extracted_code = self.no_extracted_code_retry(
+                    prompt, llm_output)
             if extracted_code is None:
                 task_duration = time.time() - task_start
                 return SolutionOutput(
                     task_id=str(task.instance_id),
                     benchmark="swebench",
                     success=False,
-                    solution="Maximum number of iterations hit, no extracted code",
+                    solution="Maximum number of iterations hit, no extracted \
+                        code",
                     system_prompt=prompt,
                     iterations=self.iteration,
                     total_requests=sum(

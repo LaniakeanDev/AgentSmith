@@ -18,7 +18,7 @@ class SWEBenchCli:
         model_name: str,
         provider_url: str,
         # max_iterations: Optional[int] = 30,
-        max_iterations: Optional[int] = 5,
+        max_iterations: Optional[int] = 10,
         config: Optional[SandboxConfig] = SandboxConfig()
     ):
         """
