@@ -6,6 +6,9 @@ from pathlib import Path
 import os
 import re
 import subprocess
+from pathlib import PurePath
+import ast
+
 
 # Create an MCP server
 mcp = FastMCP("SWEBench", json_response=True)
@@ -14,7 +17,6 @@ cwd = os.path.abspath(os.path.join(os.getcwd(), '..', 'testbed'))
 eval_script = os.environ.get('eval_script')
 
 
-# Add an addition tool
 @mcp.tool()
 def read_file(filepath: str, start_line: int, end_line: int) -> str | None:
     """
@@ -32,7 +34,8 @@ def read_file(filepath: str, start_line: int, end_line: int) -> str | None:
     # Validate parameters
     if start_line < 1 or end_line < start_line:
         return None
-
+    MAX_LINES = 50
+    truncated = False
     try:
         lines = []
         file_path = Path(cwd) / filepath
@@ -41,8 +44,16 @@ def read_file(filepath: str, start_line: int, end_line: int) -> str | None:
                 if i > end_line:
                     break
                 if i >= start_line:
+                    if len(lines) >= MAX_LINES:
+                        truncated = True
+                        break
                     lines.append(f"{i}: {line.rstrip()}")
-        return '\n'.join(lines) if lines else None
+        result = '\n'.join(lines) if lines else None
+        if result and truncated:
+            last_line = start_line + MAX_LINES - 1
+            result += f"\n... (truncated at line {last_line}; call again with start_line={last_line + 1} to continue)"
+            return result
+        return result
     except FileNotFoundError:
         print(f"File not found: {filepath}")
         return None
@@ -126,9 +137,12 @@ def list_files(directory: str, pattern: str = "*") -> dict[str, Any] | None:
         }
 
 
+MAX_RESULTS = 50
+
+
 @mcp.tool()
-def search_code(pattern: str, file_pattern: str = "*") -> str | None:
-    """
+def search_code(pattern: str, file_pattern: str = "*") -> str:
+    f"""
     Perform a grep-like search in the codebase.
 
     Args:
@@ -137,7 +151,8 @@ def search_code(pattern: str, file_pattern: str = "*") -> str | None:
 
     Returns:
         Formatted string with matches following the format:
-        /absolute/path/to/file.py:<line_number> <line_content>
+        /absolute/path/to/file.py:<line_number>:<line_content>
+        returns at most {MAX_RESULTS}
     """
     if not pattern:
         return "No search pattern given"
@@ -168,17 +183,20 @@ def search_code(pattern: str, file_pattern: str = "*") -> str | None:
                 # Check if file matches pattern
                 matches_file_pattern = False
                 for fp in file_patterns:
-                    if '/' in fp or '\\' in fp:
-                        # path-qualified pattern: match against relative or absolute path
-                        if fnmatch.fnmatch(rel_path, fp) or fnmatch.fnmatch(
-                            abs_path, fp):
-                            matches_file_pattern = True
-                            break
-                    else:
-                        # simple glob: match against basename only
-                        if fnmatch.fnmatch(file, fp):
-                            matches_file_pattern = True
-                            break
+                    # if '/' in fp or '\\' in fp:
+                    #     # path-qualified pattern: match against relative or absolute path
+                    #     if fnmatch.fnmatch(rel_path, fp) or fnmatch.fnmatch(
+                    #         abs_path, fp):
+                    #         matches_file_pattern = True
+                    #         break
+                    # else:
+                    #     # simple glob: match against basename only
+                    #     if fnmatch.fnmatch(file, fp):
+                    #         matches_file_pattern = True
+                    #         break
+                    if PurePath(rel_path).match(fp) or PurePath(file).match(fp):
+                        matches_file_pattern = True
+                        break
                 if not matches_file_pattern:
                     continue
                 filepath = os.path.join(root, file)
@@ -187,12 +205,15 @@ def search_code(pattern: str, file_pattern: str = "*") -> str | None:
                     # Read file with error handling for binary files
                     with open(
                             filepath, 'r',
-                            encoding='utf-8', errors='ignore') as f:
+                            encoding='utf-8', errors='replace') as f:
                         for line_num, line in enumerate(f, 1):
                             if regex.search(line):
+                                if len(results) >= MAX_RESULTS:
+                                    tcall = f"search_code(pattern={pattern}, file_pattern={file_pattern})="
+                                    return f"{tcall}{'\n'.join(results)} (truncated at {MAX_RESULTS} results)"
                                 results.append(
-                                    f"{abs_path}:{line_num} {line.rstrip()}")
-                except (UnicodeDecodeError, PermissionError, OSError):
+                                    f"{abs_path}:{line_num}:{line.rstrip()}")
+                except (PermissionError, OSError):
                     # Skip binary files, permission denied, etc.
                     continue
         if not results:
@@ -216,12 +237,12 @@ def edit_file(filepath: str,
     Returns:
         Dict with 'success' and 'message', or None on critical error
     Usage:
-        result = edit_file(...)
-        print(result)
+        edit_file(filepath, old_str, new_str)
     """
     # Validate inputs
     if not old_str:
         return {
+            'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
             'success': False,
             'message': "old_str cannot be empty"
         }
@@ -232,10 +253,24 @@ def edit_file(filepath: str,
             content = f.read()
         # Check if old_str exists
         if old_str not in content:
-            return {
-                'success': False,
-                'message': f"'{old_str}' not found in {filepath}"
-            }
+            if new_str in content:
+                return {
+                    'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
+                    'success': True,
+                    'message': f"no-op: this change is already applied, '{new_str}' is already in {filepath}"
+                }
+            variant1 = old_str.replace("'", '"')
+            variant2 = old_str.replace('"', "'")
+            if variant1 in content:
+                old_str = variant1
+            elif variant2 in content:
+                old_str = variant2
+            else:
+                return {
+                    'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
+                    'success': False,
+                    'message': f"'{old_str}' not found in {filepath}"
+                }
         # Count occurrences
         count = content.count(old_str)
         # Perform replacement
@@ -246,17 +281,20 @@ def edit_file(filepath: str,
         message = f"Replaced {count} occurrence(s) of '{old_str}' with "\
                   f"'{new_str}' in {filepath}"
         return {
+            'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
             'success': True,
             'message': message,
             'count': count
         }
     except FileNotFoundError:
         return {
+            'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
             'success': False,
             'message': f"File not found: {filepath}"
         }
     except PermissionError:
         return {
+            'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
             'success': False,
             'message': f"Permission denied: {filepath}"
         }
@@ -264,68 +302,146 @@ def edit_file(filepath: str,
         message = f"File appears to be binary or has encoding issues: "\
                   f"{filepath}"
         return {
+            'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
             'success': False,
             'message': message
         }
     except Exception as e:
         return {
+            'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
             'success': False,
             'message': f"{type(e).__name__}: {str(e)}"
         }
+
+
+# @mcp.tool()
+# def search_function_or_class_definition_in_code(name: str) -> str | None:
+#     """
+#     Find the definition of a function or class in Python files.
+
+#     Args:
+#         name: The name of the function or class to find
+#         name must be the bare function or class name,
+#         e.g. __add__, not a qualified path like ClassName.method_name.
+
+#     Returns:
+#         Formatted string with definitions following the format:
+#         /absolute/path/to/file.py:<line_number> <line_content>
+#         Returns None if no definition is found.
+#     """
+#     if not name:
+#         return None
+#     search_dir = cwd
+#     results = []
+#     patterns = [
+#         # Function definitions
+#         re.compile(
+#             rf'^\s*(?:async\s+)?def\s+{re.escape(name)}\s*\(', re.MULTILINE),
+#         # Class definitions
+#         re.compile(rf'^\s*class\s+{re.escape(name)}\s*[:\(]', re.MULTILINE),
+#     ]
+#     try:
+#         # Walk through directory
+#         for root, dirs, files in os.walk(search_dir):
+#             # Skip common exclusions
+#             dirs[:] = [d for d in dirs if not d.startswith('.') and d not in
+#                        ['node_modules', '__pycache__', 'venv', 'env', '.git',
+#                        'dist', 'build', '.pytest_cache', 'mypy_cache']]
+#             for file in files:
+#                 # Only process Python files
+#                 if not file.endswith('.py'):
+#                     continue
+#                 filepath = os.path.join(root, file)
+#                 abs_path = os.path.abspath(filepath)
+#                 try:
+#                     with open(filepath, 'r',
+#                               encoding='utf-8', errors='ignore') as f:
+#                         lines = f.readlines()
+#                     # Search each line for definition
+#                     for i, line in enumerate(lines, 1):
+#                         for pattern in patterns:
+#                             if pattern.search(line):
+#                                 results.append(
+#                                     f"{abs_path}:{i} {line.rstrip()}")
+#                                 break  # Only add once per line
+#                 except (UnicodeDecodeError, PermissionError, OSError):
+#                     continue
+#         if not results:
+#             return None
+#         return '\n'.join(results)
+#     except Exception as e:
+#         print(f"Search error: {type(e).__name__}: {str(e)}")
+#         return None
 
 
 @mcp.tool()
 def search_function_or_class_definition_in_code(name: str) -> str | None:
     """
     Find the definition of a function or class in Python files.
-
     Args:
         name: The name of the function or class to find
         name must be the bare function or class name,
         e.g. __add__, not a qualified path like ClassName.method_name.
-
     Returns:
         Formatted string with definitions following the format:
-        /absolute/path/to/file.py:<line_number> <line_content>
+        /absolute/path/to/file.py:<line_number> <qualified_name> (<kind>)
         Returns None if no definition is found.
     """
     if not name:
         return None
     search_dir = cwd
     results = []
-    patterns = [
-        # Function definitions
-        re.compile(
-            rf'^\s*(?:async\s+)?def\s+{re.escape(name)}\s*\(', re.MULTILINE),
-        # Class definitions
-        re.compile(rf'^\s*class\s+{re.escape(name)}\s*[:\(]', re.MULTILINE),
-    ]
+
+    def visit_node(node, filepath, abs_path, scope_stack):
+        """Recursively walk the AST, tracking enclosing class/function scope
+        so matches can be reported with a fully qualified name."""
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if child.name == name:
+                    qualified = ".".join(scope_stack + [child.name])
+                    kind = "async function" if isinstance(child, ast.AsyncFunctionDef) else "function"
+                    results.append(
+                        f"{abs_path}:{child.lineno} {qualified} ({kind})"
+                    )
+                # Recurse into the function body (nested defs/classes),
+                # extending scope so nested names get qualified too.
+                visit_node(child, filepath, abs_path, scope_stack + [child.name])
+            elif isinstance(child, ast.ClassDef):
+                if child.name == name:
+                    qualified = ".".join(scope_stack + [child.name])
+                    results.append(
+                        f"{abs_path}:{child.lineno} {qualified} (class)"
+                    )
+                visit_node(child, filepath, abs_path, scope_stack + [child.name])
+            else:
+                # Not a scope-creating node itself, but may contain one
+                # (e.g. an `if` block with a `def` inside it).
+                visit_node(child, filepath, abs_path, scope_stack)
     try:
-        # Walk through directory
         for root, dirs, files in os.walk(search_dir):
             # Skip common exclusions
-            dirs[:] = [d for d in dirs if not d.startswith('.') and d not in
-                       ['node_modules', '__pycache__', 'venv', 'env', '.git',
-                       'dist', 'build', '.pytest_cache', 'mypy_cache']]
+            dirs[:] = [
+                d for d in dirs
+                if not d.startswith('.') and d not in
+                ['node_modules', '__pycache__', 'venv', 'env', '.git',
+                 'dist', 'build', '.pytest_cache', 'mypy_cache']
+            ]
             for file in files:
-                # Only process Python files
                 if not file.endswith('.py'):
                     continue
                 filepath = os.path.join(root, file)
                 abs_path = os.path.abspath(filepath)
                 try:
-                    with open(filepath, 'r',
-                              encoding='utf-8', errors='ignore') as f:
-                        lines = f.readlines()
-                    # Search each line for definition
-                    for i, line in enumerate(lines, 1):
-                        for pattern in patterns:
-                            if pattern.search(line):
-                                results.append(
-                                    f"{abs_path}:{i} {line.rstrip()}")
-                                break  # Only add once per line
+                    with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
+                        source = f.read()
                 except (UnicodeDecodeError, PermissionError, OSError):
                     continue
+                try:
+                    tree = ast.parse(source, filename=filepath)
+                except SyntaxError:
+                    # Unparseable file (e.g. Python 2 source, corrupted file) — skip.
+                    continue
+                visit_node(tree, filepath, abs_path, [])
         if not results:
             return None
         return '\n'.join(results)
@@ -478,6 +594,11 @@ def run_tests() -> Dict:
     Execute bash script from eval_script env var.
     Returns {stdout, stderr, exit_code, success}.
     """
+    MAX_LEN = 2048
+    all_tests_passed = False
+    clean_stdout = ""
+    clean_stderr = ""
+    exit_code = -1
     try:
         process = subprocess.Popen(
             ["bash"],
@@ -489,62 +610,46 @@ def run_tests() -> Dict:
             env={**os.environ}
         )
         # Send the script to bash's stdin with a timeout
-        stdout, stderr = process.communicate(input=eval_script, timeout=30)
-        all_tests_passed = False
-        if 'tests finished' in stdout and process.returncode == 0:
-            for line in stdout.split('\n'):
-                if 'tests finished' in line:
-                    if 'exceptions' in line and '0 exceptions' not in line:
-                        all_tests_passed = False
-                    elif 'failed' in line and '0 failed' not in line:
-                        all_tests_passed = False
-                    else:
-                        all_tests_passed = True
-                    break
-        if len(stdout) > 1000:
-            stdout = stdout[:1000] + "(truncated)"
-        if len(stderr) > 1000:
-            stderr = stderr[:1000] + "(truncated)"
-        return {
-            'stdout': stdout,
-            'stderr': stderr,
-            'exit_code': process.returncode,
-            'all_tests_passed': all_tests_passed
-        }
+        stdout, stderr = process.communicate(input=eval_script, timeout=60)
+        exit_code = process.returncode
+        if 'pytest' in stdout:
+            has_failures = bool(re.search(r'\d+ failed', stdout))
+            has_errors = bool(re.search(r'\d+ error', stdout))
+            has_passes = bool(re.search(r'\d+ passed', stdout))
+            all_tests_passed = has_passes and not has_failures and not has_errors
+            # pytest always prints this banner when it starts
+            match = re.search(r'={3,}\s*test session starts\s*={3,}', stdout)
+            if match:
+                clean_stdout = stdout[match.start():]
+            else:
+                clean_stdout = stdout  # fallback: tail truncation
+        else:
+            print("The test is not pytest")
+            import sys
+            sys.exit(0)
+        clean_stdout = stdout[-MAX_LEN:]
+        if exit_code != 0:
+            # If it failed, grab only the last 30 lines of stderr. 
+            # This skips the Conda export noise and grabs the actual crash
+            stderr_lines = stderr.strip().splitlines()
+            clean_stderr = "\n".join(stderr_lines[-30:])
+        else:
+            clean_stderr = ""
     except subprocess.TimeoutExpired:
         process.kill()  # Kill the hung process
         stdout, stderr = process.communicate()  # Get any remaining output
-        return {
-            'stdout': stdout,
-            'stderr': stderr + "\nERROR: Script execution timed out",
-            'exit_code': -1,
-            'success': False,
-            'error': 'Timeout expired'
-        }
-    except FileNotFoundError as e:
-        return {
-            'stdout': '',
-            'stderr': f"bash command not found: {str(e)}",
-            'exit_code': -1,
-            'success': False,
-            'error': 'bash not found'
-        }
-    except PermissionError as e:
-        return {
-            'stdout': '',
-            'stderr': f"Permission denied: {str(e)}",
-            'exit_code': -1,
-            'success': False,
-            'error': 'Permission denied'
-        }
+        clean_stdout = "ERROR: Script execution timed out"
+        clean_stderr = stderr[-500:] if stderr else ""
     except Exception as e:
-        return {
-            'stdout': '',
-            'stderr': f"Unexpected error: {str(e)}",
-            'exit_code': -1,
-            'success': False,
-            'error': str(e)
-        }
+        clean_stdout = ""
+        clean_stderr = f"Unexpected error executing script: {str(e)}"
+    # Always return the exact same keys so the LLM doesn't get confused
+    return {
+        'stdout': clean_stdout,
+        'stderr': clean_stderr,
+        'exit_code': exit_code,
+        'all_tests_passed': all_tests_passed
+    }
 
 
 @mcp.tool()

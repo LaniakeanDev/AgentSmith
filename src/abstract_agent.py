@@ -273,7 +273,7 @@ class AbstractAgent:
         new_prompt = f"{prompt}\n\nIteration {iteration}:\nYour output:\n\
             {llm_output}Extracted and executed code (first block only):\n"
         new_prompt += f"```python\n{code}\n```\n{message}\n"
-        new_prompt += "Think, then generate one single code block"
+        new_prompt += "Think for no more than 128 tokens, then generate one single code block"
         return new_prompt
 
 

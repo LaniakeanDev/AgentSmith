@@ -191,6 +191,9 @@ class MCPClient:
                         block.text for block in result.content
                         if hasattr(block, "text")
                     )
+                    to_print = ['search_code', 'edit_file']
+                    if tool.name in to_print:
+                        print(text)
                     # Try to parse as JSON - return dict/list if valid JSON
                     try:
                         return json.loads(text)

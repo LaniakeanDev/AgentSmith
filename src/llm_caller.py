@@ -77,7 +77,7 @@ PROVIDERS_KEY_CONST_MAP = {
 }
 
 # Default priority order for provider rotation
-DEFAULT_PROVIDER_PRIORITY = ["groq", "qwen", "openrouter", "cerebras", "gemini"]
+DEFAULT_PROVIDER_PRIORITY = ["gemini", "cerebras", "groq", "qwen", "openrouter"]
 
 
 # ==================== Main LLM Caller Class ====================
@@ -135,17 +135,21 @@ class LLMCaller:
         start_time = time.time()
         response = client.interactions.create(
             model=config["model"],
-            input=prompt
+            input=prompt,
+            stopSequences=["\n```\n"],
+            max_output_tokens=256
         )
         elapsed_time_ms = (time.time() - start_time) * 1000
-
+        llm_output = response.output_text
+        if llm_output is None or llm_output == 'None':
+            raise Exception("llm_output is None")
         return CallMetrics(
             input_tokens=response.usage.total_input_tokens,
             output_tokens=response.usage.total_output_tokens,
             request_time_ms=elapsed_time_ms,
             api_url=config["url"],
             model_name=response.model,
-            llm_output=response.output_text,
+            llm_output=f"{llm_output}\n```\n",
             retries=0,
             prompt=prompt
         )
@@ -165,15 +169,18 @@ class LLMCaller:
         response = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=config["model"],
+            stop=["\n```\n"]
         )
-
+        llm_output = response.choices[0].message.content
+        if llm_output is None or llm_output == 'None':
+            raise Exception("llm_output is None")
         return CallMetrics(
             input_tokens=response.usage.prompt_tokens,
             output_tokens=response.usage.completion_tokens,
             request_time_ms=response.usage.total_time * 1000,
             api_url=config["url"],
             model_name=response.model,
-            llm_output=response.choices[0].message.content,
+            llm_output=f"{llm_output}\n```\n",
             retries=0,
             prompt=prompt
         )
@@ -182,23 +189,16 @@ class LLMCaller:
         """Single Cerebras API call with specific key"""
         print("Calling Cerebras...")
         from cerebras.cloud.sdk import Cerebras
-
         api_key = self._get_api_key("cerebras", key_num)
         if not api_key:
             raise RateLimitError(f"No API key for cerebras_{key_num}")
-
         config = PROVIDERS_KEY_CONST_MAP["cerebras"]
         client = Cerebras(api_key=api_key)
-
         response = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=config["model"],
-            max_completion_tokens=1024,
-            temperature=0.2,
-            top_p=1,
-            stream=False,
+            stop=["\n```\n"]
         )
-
         # Handle None response (Cerebras-specific issue)
         none_retries = 0
         while response.choices[0].message.content is None:
@@ -209,19 +209,19 @@ class LLMCaller:
             response = client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
                 model=config["model"],
-                max_completion_tokens=1024,
-                temperature=0.2,
-                top_p=1,
+                max_completion_tokens=256,
                 stream=False,
             )
-
+        llm_output = response.choices[0].message.content
+        if llm_output is None or llm_output == 'None':
+            raise Exception("llm_output is None")
         return CallMetrics(
             input_tokens=response.usage.prompt_tokens,
             output_tokens=response.usage.completion_tokens,
             request_time_ms=response.time_info.total_time * 1000,
             api_url=config["url"],
             model_name=response.model,
-            llm_output=response.choices[0].message.content,
+            llm_output=f"{llm_output}\n```\n",
             retries=0,
             prompt=prompt
         )
@@ -244,7 +244,9 @@ class LLMCaller:
 
         payload = {
             'model': config["model"],
-            'messages': [{'role': 'user', 'content': prompt}]
+            'messages': [{'role': 'user', 'content': prompt}],
+            'stop': ["\n```\n"],
+            'max_tokens': 256
         }
 
         start_time = time.time()
@@ -263,6 +265,9 @@ class LLMCaller:
         elapsed_time_ms = (time.time() - start_time) * 1000
 
         result = response.json()
+        llm_output = result['choices'][0]['message']['content']
+        if llm_output is None or llm_output == 'None':
+            raise Exception("llm_output is None")
 
         return CallMetrics(
             input_tokens=result['usage']['prompt_tokens'],
@@ -270,7 +275,7 @@ class LLMCaller:
             request_time_ms=elapsed_time_ms,
             api_url=config["url"],
             model_name=result.get('model', config["model"]),
-            llm_output=result['choices'][0]['message']['content'],
+            llm_output=f"{llm_output}\n```\n",
             retries=0,
             prompt=prompt
         )
@@ -335,8 +340,8 @@ class LLMCaller:
                         time.sleep(1)
                         continue
                     else:
-                        raise ProviderExhaustedError(f"{provider} key \
-                            {key_num}: {e}")
+                        print(f"[{provider}] Key {key_num} exhausted after {self.max_retries_per_key} retries: {e}")
+                        break
 
                 except Exception as e:
                     total_retries += 1
@@ -350,7 +355,8 @@ class LLMCaller:
                         time.sleep(1)
                         continue
                     else:
-                        raise ProviderExhaustedError(f"{provider} key {key_num}: {e}")
+                        print(f"[{provider}] Key {key_num} exhausted after {self.max_retries_per_key} retries: {e}")
+                        break
 
         raise ProviderExhaustedError(
             f"{provider} exhausted all {num_keys} keys after {total_retries} attempts"
@@ -372,19 +378,19 @@ class LLMCaller:
     def call_llm(self, prompt: str, timeout: int = 30) -> CallMetrics:
         """
         Main entry point for calling LLMs.
-        
+
         Handles (in order):
         1. Retries with same key (up to max_retries_per_key)
         2. Key rotation within provider (KEY_1 → KEY_2 → ...)
         3. Provider rotation when all keys exhausted (groq → qwen → ...)
-        
+
         Args:
             prompt: The prompt to send to the LLM
             timeout: Request timeout in seconds
-            
+
         Returns:
             CallMetrics with response data and metadata
-            
+
         Raises:
             AllProvidersFailedError: If all providers fail
         """

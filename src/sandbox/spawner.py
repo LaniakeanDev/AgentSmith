@@ -3,7 +3,7 @@ from typing import List
 
 from agent_swebench.swebench_models import SWEBenchTaskInput
 from agent_mbpp.mbpp_models import MBPPTaskInput
-from models import SandboxConfig, ExecutionResult
+from .sandbox_models import SandboxConfig, ExecutionResult
 import subprocess
 import json
 import os

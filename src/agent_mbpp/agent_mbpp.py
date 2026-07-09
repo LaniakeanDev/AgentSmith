@@ -218,7 +218,7 @@ class MBPPAgent:
         new_prompt = f"{prompt}\n\nIteration {iteration_count}:\ncode: {code}"
         new_prompt += '\n' + message + '\n'
         new_prompt += f"execution output: {exec_output}\n"
-        new_prompt += "Think, then make the next iteration"
+        new_prompt += "Think for no more than 128 tokens, then make the next iteration"
         return new_prompt
 
     def solve_task(

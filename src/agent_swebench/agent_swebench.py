@@ -42,7 +42,7 @@ class SWEBenchAgent(AbstractAgent):
         )
         self.all_tests_passed = False
         self.caller = LLMCaller(
-            provider="groq",
+            # provider="gemini",
             max_retries_per_key=3
             )
 
@@ -65,15 +65,49 @@ class SWEBenchAgent(AbstractAgent):
         # print(f"Manual retrieved:\n{manual}")
         await client.cleanup()
 
-    def extract_code(self, llm_output: str) -> str | None:
-        pattern = r'```python\n(.*?)```'
+    def extract_code(self, llm_output: str) -> tuple[str | None, str | None]:
+        pattern = r"```(?:python)?\r?\n(.*?)```"
         match = re.search(pattern, llm_output, re.DOTALL)
         if match:
             code = match.group(1)
             code = self.sanitize_code(code)
-            return code
-        else:
-            return None
+            truncated_output = llm_output[:match.end(1)]
+            return code, truncated_output
+        # <tool_call>fn(args)</tool_call>
+        pattern = (
+            r"<tool_call>\s*"
+            r"([a-zA-Z_]\w*\([^)]*\))"
+            r"\s*(?:</tool_call>|$)"
+        )
+        match = re.search(pattern, llm_output, re.DOTALL)
+        if match:
+            tool_call = match.group(1)
+            truncated_output = llm_output[:match.end()]
+            return tool_call, truncated_output
+        pattern = r"<tool_call>\s*(.*?)\s*</tool_call>"
+        match = re.search(pattern, llm_output, re.DOTALL)
+        if match:
+            content = match.group(1)
+            name_match = re.match(r"\s*([a-zA-Z_]\w*)", content)
+            if not name_match:
+                return None, None
+            tool_name = name_match.group(1)
+            args = dict(re.findall(
+                r"<arg_key>(.*?)</arg_key>\s*<arg_value>(.*?)</arg_value>",
+                content,
+                re.DOTALL,
+            ))
+            truncated_output = llm_output[:match.end()]
+            parts = []
+            for k, v in args.items():
+                v = v.strip()
+                if not re.fullmatch(r"-?\d+(\.\d+)?|True|False|None", v):
+                    v = repr(v)
+                parts.append(f"{k}={v}")
+
+            tool_call = f"{tool_name}({', '.join(parts)})"
+            return tool_call, truncated_output
+        return None, None
 
     def build_image(self) -> None:
         print("building Image...")
@@ -115,14 +149,14 @@ class SWEBenchAgent(AbstractAgent):
             subprocess.run(["docker", "rmi", "-f", self.image_name],
                            capture_output=True, text=True)
 
-    def no_extracted_code_retry(self, prompt: str, llm_output: str) -> str:
+    def no_extr_code_retry(self, prompt: str, llm_output: str) -> tuple[str | None, str | None]:
         message = "No code block was detected in your previous response"
         prompt = self.get_new_prompt(
             prompt=prompt,
             code="No code could be extracted",
             iteration=self.iteration,
             message=message,
-            llm_output=llm_output
+            llm_output=""
             )
         self.iteration += 1
         print(f"\n\nIteration {self.iteration}")
@@ -132,9 +166,9 @@ class SWEBenchAgent(AbstractAgent):
         print("Response received")
         llm_output = call_metrics.llm_output.strip()
         print(f"llm_output:\n{llm_output}\n")
-        extracted_code = self.extract_code(llm_output)
+        extracted_code, trunc_llm_output = self.extract_code(llm_output)
         print(f"extracted_code:\n{extracted_code}")
-        return extracted_code
+        return extracted_code, trunc_llm_output
 
     def sandbox_exec(
             self,
@@ -159,13 +193,13 @@ class SWEBenchAgent(AbstractAgent):
         call_metrics = self.caller.call_llm(prompt)
         print("Response received")
         llm_output = call_metrics.llm_output.strip()
-        print(f"\n\nllm_output:\n{llm_output}\n")
-        extracted_code = self.extract_code(llm_output)
+        print(f"\nllm_output:\n{llm_output}\n")
+        extracted_code, trunc_llm_output = self.extract_code(llm_output)
         print(f"extracted_code:\n{extracted_code}")
         self.iteration = 1
         while extracted_code is None and \
                 self.iteration < self.max_iterations:
-            extracted_code = self.no_extracted_code_retry(
+            extracted_code, trunc_llm_output = self.no_extr_code_retry(
                 prompt, llm_output)
         if extracted_code is None:
             task_duration = time.time() - self.task_start
@@ -221,7 +255,7 @@ class SWEBenchAgent(AbstractAgent):
                     code=extracted_code,
                     iteration=self.iteration,
                     message=message,
-                    llm_output=llm_output
+                    llm_output=trunc_llm_output
                     )
                 self.iteration += 1
                 print(f"\n\nIteration {self.iteration}")
@@ -230,12 +264,12 @@ class SWEBenchAgent(AbstractAgent):
                 call_metrics = self.caller.call_llm(prompt)
                 print("Response received")
                 llm_output = call_metrics.llm_output.strip()
-                print(f"llm_output:\n{llm_output}\n")
-                extracted_code = self.extract_code(llm_output)
+                print(f"\nllm_output:\n{llm_output}\n")
+                extracted_code, trunc_llm_output = self.extract_code(llm_output)
                 print(f"extracted_code:\n{extracted_code}")
                 while extracted_code is None and \
                         self.iteration < self.max_iterations:
-                    extracted_code = self.no_extracted_code_retry(
+                    extracted_code, trunc_llm_output = self.no_extr_code_retry(
                         prompt, llm_output)
                 if extracted_code is None:
                     task_duration = time.time() - self.task_start
