@@ -12,6 +12,13 @@ from .swebench_models import StepMetrics, SWEBenchTaskInput, SolutionOutput
 from llm_caller import LLMCaller
 
 
+def remove_repeated_lines(text):
+    lines = text.splitlines()
+    # Remove duplicates while preserving order
+    unique_lines = list(dict.fromkeys(lines))
+    return '\n'.join(unique_lines)
+
+
 class SWEBenchAgent(AbstractAgent):
     def __init__(
             self,
@@ -42,7 +49,7 @@ class SWEBenchAgent(AbstractAgent):
         )
         self.all_tests_passed = False
         self.caller = LLMCaller(
-            # provider="gemini",
+            provider="groq",
             max_retries_per_key=3
             )
 
@@ -243,7 +250,7 @@ class SWEBenchAgent(AbstractAgent):
             self.step_metrics_list.append(step_metrics)
             while result.final_answer is None and \
                     self.iteration < self.max_iterations:
-                exec_output = result.output
+                exec_output = remove_repeated_lines(result.output)
                 if result.success:
                     message = f"Execution completed:"\
                             f"{exec_output}"

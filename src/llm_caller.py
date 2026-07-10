@@ -136,8 +136,10 @@ class LLMCaller:
         response = client.interactions.create(
             model=config["model"],
             input=prompt,
-            stopSequences=["\n```\n"],
-            max_output_tokens=256
+            extra_body={
+                "stopSequences": ["\n```\n"],
+                "maxOutputTokens": 256,
+            }
         )
         elapsed_time_ms = (time.time() - start_time) * 1000
         llm_output = response.output_text

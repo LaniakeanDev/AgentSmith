@@ -645,6 +645,7 @@ def run_tests() -> Dict:
         clean_stderr = f"Unexpected error executing script: {str(e)}"
     # Always return the exact same keys so the LLM doesn't get confused
     return {
+        'tool_call': 'run_tests()',
         'stdout': clean_stdout,
         'stderr': clean_stderr,
         'exit_code': exit_code,
