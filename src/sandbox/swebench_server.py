@@ -10,6 +10,83 @@ from pathlib import PurePath
 import ast
 
 
+class TestResultParser:
+    """Parse test results from stdout/stderr and exit code."""
+    def __init__(self, test_type: str) -> None:
+        self.test_type = test_type
+
+    def parse_pytest(self, stdout: str, exit_code: int) -> bool | None:
+        """django (recent), requests, flask, scikit-learn, matplotlib, etc."""
+        # anchor to the actual summary line, ignore earlier noise
+        tail = stdout[-4000:]  # summary is always near the end
+        passed_m = re.search(r'\b([1-9]\d*) passed\b', tail)
+        failed_m = re.search(r'\b([1-9]\d*) failed\b', tail)
+        error_m = re.search(r'\b([1-9]\d*) error(s)?\b', tail)
+        no_tests = 'no tests ran' in tail or 'collected 0 items' in tail
+        if no_tests:
+            return False
+        if failed_m or error_m:
+            return False
+        return bool(passed_m) and exit_code == 0
+
+    def parse_sympy_bin_test(self, stdout: str, exit_code: int) -> bool | None:
+        """sympy/sympy — custom runner (bin/test), not pytest."""
+        tail = stdout[-4000:]
+        if 'DO *NOT* COMMIT!' in tail:
+            return False
+        m = re.search(r'tests finished:\s*(\d+)\s*passed', tail)
+        if not m:
+            return False  # couldn't confirm anything ran
+        n_passed = int(m.group(1))
+        has_fail_or_exc = bool(
+            re.search(r'\bfailed\b', tail, re.IGNORECASE) or
+            re.search(r'exceptions?\s*=', tail, re.IGNORECASE))
+        return n_passed > 0 and not has_fail_or_exc and exit_code == 0
+
+    def parse_django_unittest(
+            self, stdout: str, stderr: str, exit_code: int) -> bool | None:
+        """django/django — uses its own unittest-based runner (runtests.py)."""
+        combined = stdout[-4000:] + '\n' + stderr[-4000:]
+        if re.search(r'^OK$', combined, re.MULTILINE):
+            return exit_code == 0
+        if re.search(r'FAILED \((failures|errors)=', combined):
+            return False
+        return None  # ambiguous — fall back to exit_code only
+
+    def parse_unittest_generic(
+            self, stdout: str, stderr: str, exit_code: int) -> bool | None:
+        """pylint, sphinx, some smaller repos on plain unittest."""
+        return self.parse_django_unittest(stdout, stderr, exit_code)
+
+    DISPATCH = {
+        'sympy': parse_sympy_bin_test,
+        'django': parse_django_unittest,
+        'psf': parse_pytest,
+        'pallets': parse_pytest,
+        'flask': parse_pytest,
+        'scikit-learn': parse_pytest,
+        'matplotlib': parse_pytest,
+        'pytest': parse_pytest,
+        'pydata': parse_pytest,
+        'xarray': parse_pytest,
+        'sphinx': parse_pytest,
+        'pylint': parse_pytest,
+    }
+
+    def parse_test_result(self, stdout: str, stderr: str, exit_code: int) -> bool:
+        parser = self.DISPATCH.get(self.test_type, self.parse_pytest)  # default to pytest, most common
+        try:
+            result = parser(stdout, exit_code) if parser is not \
+                self.parse_django_unittest \
+                else parser(stdout, stderr, exit_code)
+        except Exception:
+            result = None
+        if result is None:
+            # last-resort fallback: exit code only, never trust text alone
+            return exit_code == 0
+        return result
+
+
 # Create an MCP server
 mcp = FastMCP("SWEBench", json_response=True)
 cwd = os.path.abspath(os.path.join(os.getcwd(), '..', 'testbed'))
@@ -18,9 +95,10 @@ eval_script = os.environ.get('eval_script')
 
 
 @mcp.tool()
-def read_file(filepath: str, start_line: int, end_line: int) -> str | None:
+def read_file(filepath: str, start_line: int, end_line: int) -> str:
     """
-    Read the content of a file with line numbers.
+    Read the content of a file with line numbers (up to 50 lines from \
+        start_line only).
     The output format must be similar to cat -n
 
     Args:
@@ -29,11 +107,11 @@ def read_file(filepath: str, start_line: int, end_line: int) -> str | None:
         end_line: Last line number (inclusive, 1-indexed)
 
     Returns:
-        Formatted string with line numbers, or None on error
+        Formatted string with line numbers, or a message on error
     """
     # Validate parameters
     if start_line < 1 or end_line < start_line:
-        return None
+        return "Invalid line range: start_line must be >= 1 and end_line must be >= start_line"
     MAX_LINES = 50
     truncated = False
     try:
@@ -55,18 +133,15 @@ def read_file(filepath: str, start_line: int, end_line: int) -> str | None:
             return result
         return result
     except FileNotFoundError:
-        print(f"File not found: {filepath}")
-        return None
+        return f"File not found: {filepath}"
     except PermissionError:
-        print(f"Permission denied: {filepath}")
-        return None
+        return f"Permission denied: {filepath}"
     except Exception as e:
-        print(f"{type(e).__name__}: {str(e)}")
-        return None
+        return f"Error: {type(e).__name__}: {str(e)}"
 
 
 @mcp.tool()
-def list_files(directory: str, pattern: str = "*") -> dict[str, Any] | None:
+def list_files(directory: str, pattern: str = "*") -> dict[str, Any]:
     """
     List files in a directory matching a given pattern.
 
@@ -76,7 +151,7 @@ def list_files(directory: str, pattern: str = "*") -> dict[str, Any] | None:
                  Uses glob-style pattern matching
 
     Returns:
-        Dict with 'files' list and 'count', or None on error
+        Dict with 'files' list and 'count', or error message
     """
     # Validate directory
     if not directory:
@@ -119,7 +194,6 @@ def list_files(directory: str, pattern: str = "*") -> dict[str, Any] | None:
             'count': len(files),
             'files': files
         }
-
     except PermissionError:
         return {
             'success': False,
@@ -147,7 +221,7 @@ def search_code(pattern: str, file_pattern: str = "*") -> str:
 
     Args:
         pattern: The search pattern (regex or plain text)
-        file_pattern: File pattern to search in (e.g., "*.py", "*.js,*.ts")
+        file_pattern: File pattern to search in. Uses glob syntax, e.g. "*.py" or "*diophantine*" — do NOT use regex anchors like $ or ^ here
 
     Returns:
         Formatted string with matches following the format:
@@ -163,6 +237,7 @@ def search_code(pattern: str, file_pattern: str = "*") -> str:
     if not file_patterns:
         file_patterns = ["*"]
     results = []
+    matching_file_count = 0
     try:
         # Compile regex pattern
         try:
@@ -174,8 +249,7 @@ def search_code(pattern: str, file_pattern: str = "*") -> str:
         for root, dirs, files in os.walk(search_dir):
             # Skip hidden directories and common exclusions
             dirs[:] = [d for d in dirs if not d.startswith('.') and d not in
-                       ['node_modules', '__pycache__', 'venv', 'env', '.git',
-                       'dist', 'build']]
+                       ['__pycache__', 'venv', '.git', 'dist', 'build']]
             for file in files:
                 filepath = os.path.join(root, file)
                 abs_path = os.path.abspath(filepath)
@@ -183,22 +257,12 @@ def search_code(pattern: str, file_pattern: str = "*") -> str:
                 # Check if file matches pattern
                 matches_file_pattern = False
                 for fp in file_patterns:
-                    # if '/' in fp or '\\' in fp:
-                    #     # path-qualified pattern: match against relative or absolute path
-                    #     if fnmatch.fnmatch(rel_path, fp) or fnmatch.fnmatch(
-                    #         abs_path, fp):
-                    #         matches_file_pattern = True
-                    #         break
-                    # else:
-                    #     # simple glob: match against basename only
-                    #     if fnmatch.fnmatch(file, fp):
-                    #         matches_file_pattern = True
-                    #         break
                     if PurePath(rel_path).match(fp) or PurePath(file).match(fp):
                         matches_file_pattern = True
                         break
                 if not matches_file_pattern:
                     continue
+                matching_file_count += 1
                 filepath = os.path.join(root, file)
                 abs_path = os.path.abspath(filepath)
                 try:
@@ -216,6 +280,10 @@ def search_code(pattern: str, file_pattern: str = "*") -> str:
                 except (PermissionError, OSError):
                     # Skip binary files, permission denied, etc.
                     continue
+        if matching_file_count == 0:
+            return f"0 files matched file_pattern='{file_pattern}'. \
+                remember to use glob syntax, e.g. '*.py' or '*diophantine*'\
+                    — do NOT use regex anchors like $ or ^ here"
         if not results:
             return f"No results found for {pattern}"
         return '\n'.join(results)
@@ -225,7 +293,7 @@ def search_code(pattern: str, file_pattern: str = "*") -> str:
 
 @mcp.tool()
 def edit_file(filepath: str,
-              old_str: str, new_str: str) -> dict[str, Any] | None:
+              old_str: str, new_str: str) -> dict[str, Any]:
     """
     Replace an exact string in a file with a new string.
 
@@ -235,7 +303,7 @@ def edit_file(filepath: str,
         new_str: The string to replace it with
 
     Returns:
-        Dict with 'success' and 'message', or None on critical error
+        Dict with 'success' and 'message'
     Usage:
         edit_file(filepath, old_str, new_str)
     """
@@ -375,7 +443,7 @@ def edit_file(filepath: str,
 
 
 @mcp.tool()
-def search_function_or_class_definition_in_code(name: str) -> str | None:
+def search_function_or_class_definition_in_code(name: str) -> str:
     """
     Find the definition of a function or class in Python files.
     Args:
@@ -385,10 +453,10 @@ def search_function_or_class_definition_in_code(name: str) -> str | None:
     Returns:
         Formatted string with definitions following the format:
         /absolute/path/to/file.py:<line_number> <qualified_name> (<kind>)
-        Returns None if no definition is found.
+        Returns a message if no definition is found.
     """
     if not name:
-        return None
+        return "No name provided for search"
     search_dir = cwd
     results = []
 
@@ -443,18 +511,17 @@ def search_function_or_class_definition_in_code(name: str) -> str | None:
                     continue
                 visit_node(tree, filepath, abs_path, [])
         if not results:
-            return None
+            return f"No definition found for '{name}'"
         return '\n'.join(results)
     except Exception as e:
-        print(f"Search error: {type(e).__name__}: {str(e)}")
-        return None
+        return f"Search error: {type(e).__name__}: {str(e)}"
 
 
 @mcp.tool()
-def find_references(name: str, filepath: str, line: int) -> str | None:
+def find_references(name: str, filepath: str, line: int) -> str:
     """Find all usages of a symbol using regex."""
     if not name:
-        return None
+        return f"No name provided for reference search"
     search_dir = cwd
     results = []
     # Patterns to match references
@@ -509,17 +576,16 @@ def find_references(name: str, filepath: str, line: int) -> str | None:
                     continue
         return '\n'.join(results) if results else None
     except Exception as e:
-        print(f"Search error: {type(e).__name__}: {str(e)}")
-        return None
+        return f"Search error: {type(e).__name__}: {str(e)}"
 
 
 @mcp.tool()
-def get_patch() -> str | None:
+def get_patch() -> str:
     """
     Retrieve the unified git diff of all changes made to the repository.
 
     Returns:
-        Unified git diff string showing all changes, or None if not a git repo
+        Unified git diff string showing all changes, or error message
     """
     try:
         # Check if we're in a git repository
@@ -530,7 +596,7 @@ def get_patch() -> str | None:
             text=True
         )
         if result.returncode != 0:
-            return None
+            return f"Returncode: {result.returncode}"
         # Get the diff of all changes (staged and unstaged)
         result = subprocess.run(
             ["git", "diff", "--unified=3", "--no-color"],
@@ -581,11 +647,10 @@ def get_patch() -> str | None:
             ['date'], capture_output=True, text=True).stdout.strip()}\n"
         header += "=" * 80 + "\n"
         return header + diff_output
-    except FileNotFoundError:
-        return None  # Git not installed
+    except FileNotFoundError as e:
+        return f"Error: {type(e).__name__}: {str(e)}"
     except Exception as e:
-        print(f"Error getting patch: {type(e).__name__}: {str(e)}")
-        return None
+        return f"Error getting patch: {type(e).__name__}: {str(e)}"
 
 
 @mcp.tool()
@@ -599,6 +664,27 @@ def run_tests() -> Dict:
     clean_stdout = ""
     clean_stderr = ""
     exit_code = -1
+    TEST_TYPES = [
+        'pytest',
+        'sympy',
+        'django',
+        'psf',
+        'pallets',
+        'flask',
+        'scikit-learn',
+        'matplotlib',
+        'pydata',
+        'xarray',
+        'sphinx',
+        'pylint',
+    ]
+    test_type = "pytest"
+    if eval_script is not None:
+        for test in TEST_TYPES:
+            if test in eval_script:
+                test_type = test
+                break
+    test_result_parser = TestResultParser(test_type)
     try:
         process = subprocess.Popen(
             ["bash"],
@@ -612,21 +698,14 @@ def run_tests() -> Dict:
         # Send the script to bash's stdin with a timeout
         stdout, stderr = process.communicate(input=eval_script, timeout=60)
         exit_code = process.returncode
-        if 'pytest' in stdout:
-            has_failures = bool(re.search(r'\d+ failed', stdout))
-            has_errors = bool(re.search(r'\d+ error', stdout))
-            has_passes = bool(re.search(r'\d+ passed', stdout))
-            all_tests_passed = has_passes and not has_failures and not has_errors
-            # pytest always prints this banner when it starts
-            match = re.search(r'={3,}\s*test session starts\s*={3,}', stdout)
-            if match:
-                clean_stdout = stdout[match.start():]
-            else:
-                clean_stdout = stdout  # fallback: tail truncation
-        else:
-            print("The test is not pytest")
-            import sys
-            sys.exit(0)
+        test_result_parser.parse_test_result(
+            stdout=stdout,
+            stderr=stderr,
+            exit_code=exit_code)
+        all_tests_passed = test_result_parser.parse_test_result(
+            stdout=stdout,
+            stderr=stderr,
+            exit_code=exit_code)
         clean_stdout = stdout[-MAX_LEN:]
         if exit_code != 0:
             # If it failed, grab only the last 30 lines of stderr. 
@@ -655,7 +734,7 @@ def run_tests() -> Dict:
 
 @mcp.tool()
 def run_command(
-        command: str, workdir: str = "") -> dict[str, Any] | None:
+        command: str, workdir: str = "") -> dict[str, Any]:
     """
     Execute a shell command in the specified working directory.
 

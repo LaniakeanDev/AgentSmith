@@ -395,6 +395,7 @@ final_answer(patch) must be called alone
 {self.task.problem_statement}
 
 ### Hints
+VERY IMPORTANT: Most of the time the fix is just explained here. Read carefully and follow the hints.
 {self.task.hints_text}
 
 ### Evaluation Script
