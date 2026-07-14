@@ -1,3 +1,8 @@
+
+- clean images when done?
+or have a Makefile rule for it?
+
+
 # MBPP
 
 ## Sandbox

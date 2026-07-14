@@ -1,9 +1,10 @@
 import asyncio
 # import subprocess
+import json
 import os
 import shlex
 import sys
-from typing import Optional
+from typing import Optional, List
 from contextlib import AsyncExitStack
 
 from mcp import ClientSession, StdioServerParameters
@@ -11,7 +12,12 @@ from mcp.client.stdio import stdio_client
 
 
 class MCPClient:
-    def __init__(self, mcp_cmd: str):
+    def __init__(
+        self,
+        mcp_cmd: str,
+        eval_script: str | None,
+        test_list: List[str] | None = None
+        ):
         self.mcp_cmd = mcp_cmd
         self.session: Optional[ClientSession] = None
         self.exit_stack: Optional[AsyncExitStack] = None
@@ -20,6 +26,8 @@ class MCPClient:
         self.read_stream = None
         self.write_stream = None
         self.messages = ""
+        self.eval_script = eval_script
+        self.test_list = test_list
         # try:
         #     self.spawn_server()
         # except Exception:
@@ -41,11 +49,23 @@ class MCPClient:
             os.path.join(PROJECT_ROOT, a) if not os.path.isabs(a) and a.endswith(".py") else a
             for a in args
         ]
-        server_params = StdioServerParameters(
-            command=command,
-            args=args,
-            env=None
-        )
+        if self.eval_script is not None:
+            server_params = StdioServerParameters(
+                command=command,
+                args=args,
+                env={"eval_script": self.eval_script}
+            )
+        elif self.test_list is not None:
+            server_params = StdioServerParameters(
+                command=command,
+                args=args,
+                env={"test_list": self.test_list}
+            )
+        else:
+            server_params = StdioServerParameters(
+                command=command,
+                args=args,
+            )
         try:
             # Start the server and connect to it
             stdio_transport = await self.exit_stack.enter_async_context(
@@ -63,16 +83,16 @@ class MCPClient:
             # List available tools
             response = await self.session.list_tools()
             self.tools = response.tools
-            self.messages += \
-                f"Connected to server with tools: "\
-                f"{[tool.name for tool in self.tools]}"
+            # self.messages += \
+            #     f"Connected to server with tools: "\
+            #     f"{[tool.name for tool in self.tools]}"
             self.connected = True
 
         except Exception as e:
             await self.cleanup()
             raise Exception(
                 f"Failed to connect to server: {type(e).__name__}: "
-                f"{str(e)}")
+                f"{str(e)}, cmd: {self.mcp_cmd}")
 
     async def cleanup(self):
         """Clean up resources"""
@@ -123,35 +143,75 @@ class MCPClient:
         response = await self.session.list_tools()
         self.tools = response.tools
 
-    async def build_tool_wrappers(self) -> dict:
+    async def build_tool_wrappers(self, loop=None) -> dict:
         """Discover tools from MCP server and create callable wrappers."""
         await self.get_tools()
         wrappers = {}
         for tool in self.tools:
-            # Capture tool.name in closure to avoid late binding issue
-            def make_wrapper(tool_name):
-                def wrapper(**kwargs):
-                    # This is synchronous from the LLM code's perspective
-                    # but calls the async MCP session underneath
-                    # import asyncio
-                    result = asyncio.get_event_loop().run_until_complete(
-                        self.session.call_tool(tool_name, kwargs)
-                    )
-                    # Extract text content from result
-                    return "\n".join(
-                        block.text for block in result.content 
+            # Capture tool and loop in closure to avoid late binding issue
+            def make_wrapper(tool, loop=loop):
+                # Parameter names in declared order, from the tool's JSON schema
+                param_names = list(tool.inputSchema.get("properties", {}).keys())
+
+                def wrapper(*args, **kwargs):
+                    if len(args) > len(param_names):
+                        raise TypeError(
+                            f"{tool.name}() takes {len(param_names)} "
+                            f"positional arguments but {len(args)} were given"
+                        )
+                    # Map positional args onto their named parameters
+                    call_kwargs = dict(zip(param_names, args))
+                    # Guard against a name being passed both positionally and by keyword
+                    overlap = call_kwargs.keys() & kwargs.keys()
+                    if overlap:
+                        raise TypeError(
+                            f"{tool.name}() got multiple values for "
+                            f"argument(s): {', '.join(overlap)}"
+                        )
+                    call_kwargs.update(kwargs)
+                    # Check if there's already a running event loop
+                    if loop is not None and not loop.is_running():
+                        # Use the existing loop (session is bound to it)
+                        result = loop.run_until_complete(
+                            self.session.call_tool(tool.name, call_kwargs)
+                        )
+                    elif loop is not None and loop.is_running():
+                        # Loop is running - schedule on it
+                        future = asyncio.run_coroutine_threadsafe(
+                            self.session.call_tool(tool.name, call_kwargs),
+                            loop
+                        )
+                        result = future.result(timeout=30)
+                    else:
+                        # No loop provided, create a new one
+                        result = asyncio.run(
+                            self.session.call_tool(tool.name, call_kwargs)
+                        )
+                    text = "\n".join(
+                        block.text for block in result.content
                         if hasattr(block, "text")
                     )
-                wrapper.__name__ = tool_name
+                    to_print = ['search_code', 'edit_file', 'search_function_or_class_definition_in_code']
+                    if tool.name in to_print:
+                        print(text)
+                    # Try to parse as JSON - return dict/list if valid JSON
+                    try:
+                        return json.loads(text)
+                    except (json.JSONDecodeError, TypeError, ValueError):
+                        # Return raw string for non-JSON responses
+                        return text
+                    except Exception:
+                        return "another exception happened"
+                wrapper.__name__ = tool.name
                 wrapper.__doc__ = tool.description
                 return wrapper
-            wrappers[tool.name] = make_wrapper(tool.name)
+            wrappers[tool.name] = make_wrapper(tool)
         return wrappers
 
     def generate_sandbox_manual(self) -> str:
-        lines = ["# Available Tools\n"]
+        lines = ["## Available Tools\n"]
         for tool in self.tools:
-            lines.append(f"## {tool.name}")
+            lines.append(f"### {tool.name}")
             lines.append(f"{tool.description}\n")
             lines.append("Parameters:")
             for param_name, param_info in tool.inputSchema.get(

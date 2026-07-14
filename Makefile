@@ -1,4 +1,19 @@
 
+# runs in a subshell
+dump-swe:
+	(cd moulinette && uv run moulinette_eval dump swebench --output ../cache/swebench_task.json)
+
+validate-swe:
+	(cd moulinette && uv run moulinette_eval validate swebench cache/swebench_task.json \
+cache/swebench_solution.json)
+
+dump-swe-task-%:
+	(cd moulinette && uv run moulinette_eval dump swebench --task-id $* --output ../cache/swebench_task.json)
+
+run-swe:
+	uv run python -m agent_swebench --task-file cache/swebench_task.json \
+--output cache/swebench_solution.json \
+--model-name "model/name" --provider-url "https://provider.api/v1"
 
 install_docker_sandbox:
 	cd src/sandbox && \

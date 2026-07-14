@@ -1,10 +1,11 @@
+import asyncio
 import json
 import sys
 from typing import Optional
+from agent_swebench.agent_swebench import SWEBenchAgent
 import fire
-
-from src.agent_mbpp.agent_mbpp import MBPPAgent
-from src.agent_mbpp.mbpp_models import MBPPTaskInput
+from sandbox.sandbox_models import SandboxConfig
+from .swebench_models import SWEBenchTaskInput
 
 
 class SWEBenchCli:
@@ -16,7 +17,9 @@ class SWEBenchCli:
         output: str,
         model_name: str,
         provider_url: str,
-        max_iterations: Optional[int] = 30
+        # max_iterations: Optional[int] = 30,
+        max_iterations: Optional[int] = 15,
+        config: Optional[SandboxConfig] = SandboxConfig()
     ):
         """
         Run SWEBench agent on a given task.
@@ -30,11 +33,19 @@ class SWEBenchCli:
         try:
             with open(task_file, 'r') as f:
                 task_data = json.load(f)
-            task = MBPPTaskInput.model_validate(task_data)
-            agent = MBPPAgent(
-                provider_model=model_name, provider_url=provider_url,
-                max_iterations=max_iterations)
-            solution = agent.solve_task(task)
+            task = SWEBenchTaskInput.model_validate(task_data)
+            agent = SWEBenchAgent(
+                provider_model=model_name,
+                provider_url=provider_url,
+                max_iterations=max_iterations,
+                config=config,
+                task=task)
+            print("Agent created")
+            print("Fetching sandbox manual...")
+            asyncio.run(
+                agent.get_sandbox_manual()
+            )
+            solution = agent.handle_task()
             with open(output, 'w') as f:
                 f.write(solution.model_dump_json(indent=2))
         except Exception as e:

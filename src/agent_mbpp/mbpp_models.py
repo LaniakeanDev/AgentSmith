@@ -12,18 +12,6 @@ class MBPPTaskInput(BaseModel):
     test_list: List[str] = Field(default_factory=list)
 
 
-class CallMetrics(BaseModel):
-    """Metrics for a single LLM call."""
-    input_tokens: int
-    output_tokens: int
-    request_time_ms: float
-    api_url: str
-    model_name: str
-    llm_output: str
-    retries: int
-    prompt: str
-
-
 class StepMetrics(BaseModel):
     """Metrics for a single agent step."""
     step: int

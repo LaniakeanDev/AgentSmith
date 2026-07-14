@@ -13,7 +13,7 @@ async def build_tool_wrappers(session: ClientSession) -> dict:
                 # This is synchronous from the LLM code's perspective
                 # but calls the async MCP session underneath
                 import asyncio
-                result = asyncio.get_event_loop().run_until_complete(
+                result = asyncio.run(
                     session.call_tool(tool_name, kwargs)
                 )
                 # Extract text content from result
