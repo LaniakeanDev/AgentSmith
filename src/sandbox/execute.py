@@ -18,7 +18,7 @@ def execute(
     reg_stdout = sys.stdout
     # capture untrusted code's output
     sys.stdout = buffer = io.StringIO()
-    output = "No output generatedy"
+    output = "No output generated"
     try:
         exec(code, restricted_globals)
         output = buffer.getvalue()

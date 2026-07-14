@@ -1,8 +1,15 @@
+
+- clean images when done?
+or have a Makefile rule for it?
+
+
 # MBPP
 
 ## Sandbox
 
 ?Remove the Docker and use a simple subprocess
+
+Retry logic, provider shift logic
 
 ### sandbox CLI usage
 ```bash

@@ -1,7 +1,8 @@
 import re
 from typing import List
 from agent_mbpp.mbpp_models import (
-    CallMetrics, MBPPTaskInput, SolutionOutput, StepMetrics)
+    MBPPTaskInput, SolutionOutput, StepMetrics)
+from ..models import CallMetrics
 import requests
 import time
 import os
@@ -217,7 +218,7 @@ class MBPPAgent:
         new_prompt = f"{prompt}\n\nIteration {iteration_count}:\ncode: {code}"
         new_prompt += '\n' + message + '\n'
         new_prompt += f"execution output: {exec_output}\n"
-        new_prompt += "Think, then make the next iteration"
+        new_prompt += "Think for no more than 128 tokens, then make the next iteration"
         return new_prompt
 
     def solve_task(
@@ -243,12 +244,12 @@ class MBPPAgent:
         # print(result)
         while result.final_answer is None and \
                 iteration_count <= 1:
-                # iteration_count <= self.max_iterations:
+            # iteration_count <= self.max_iterations:
             exec_output = result.output
             if result.success:
-                message = "Execution completed but some tests failed"
+                message = "\nExecution completed but some tests failed"
             else:
-                message = f"Execution could not complete: {result.error}"
+                message = f"\nExecution could not complete: {result.error}"
             print(message)
             prompt = self.get_new_prompt(
                 prompt=prompt,
