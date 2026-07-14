@@ -9,6 +9,14 @@ import subprocess
 from pathlib import PurePath
 import ast
 
+_ANSI_RE = re.compile(r'\x1b\[[0-9;]*[mK]')
+
+_OK_RE = re.compile(
+    r'^OK(\s*\((?:skipped|expected failures|unexpected successes)=\d+.*\))?\s*$',
+    re.MULTILINE,
+)
+_FAILED_RE = re.compile(r'^FAILED\s*\(.*\)\s*$', re.MULTILINE)
+
 
 class TestResultParser:
     """Parse test results from stdout/stderr and exit code."""
@@ -43,15 +51,29 @@ class TestResultParser:
             re.search(r'exceptions?\s*=', tail, re.IGNORECASE))
         return n_passed > 0 and not has_fail_or_exc and exit_code == 0
 
+
     def parse_django_unittest(
             self, stdout: str, stderr: str, exit_code: int) -> bool | None:
         """django/django — uses its own unittest-based runner (runtests.py)."""
-        combined = stdout[-4000:] + '\n' + stderr[-4000:]
-        if re.search(r'^OK$', combined, re.MULTILINE):
-            return exit_code == 0
-        if re.search(r'FAILED \((failures|errors)=', combined):
+        combined = _ANSI_RE.sub('', stdout + '\n' + stderr).replace('\r', '')
+
+        ok_matches = list(_OK_RE.finditer(combined))
+        failed_matches = list(_FAILED_RE.finditer(combined))
+
+        if not ok_matches and not failed_matches:
+            return None  # ambiguous — fall back to exit_code only
+
+        last_ok_pos = ok_matches[-1].start() if ok_matches else -1
+        last_failed_pos = failed_matches[-1].start() if failed_matches else -1
+
+        # Whichever marker appears LAST in the log wins — this handles
+        # concatenated FAIL_TO_PASS / PASS_TO_PASS runs correctly.
+        if last_failed_pos > last_ok_pos:
             return False
-        return None  # ambiguous — fall back to exit_code only
+        if last_ok_pos > last_failed_pos:
+            return exit_code == 0
+
+        return None  # shouldn't happen, but stay conservative
 
     def parse_unittest_generic(
             self, stdout: str, stderr: str, exit_code: int) -> bool | None:
@@ -230,31 +252,24 @@ def search_code(pattern: str, file_pattern: str = "*") -> str:
     """
     if not pattern:
         return "No search pattern given"
-    # Default to current directory if no file_pattern specified
+
     search_dir = cwd
-    # Parse file patterns
     file_patterns = [p.strip() for p in file_pattern.split(',') if p.strip()]
     if not file_patterns:
         file_patterns = ["*"]
-    results = []
-    matching_file_count = 0
-    try:
-        # Compile regex pattern
-        try:
-            regex = re.compile(pattern, re.IGNORECASE)
-        except re.error:
-            # If invalid regex, treat as literal string
-            regex = re.compile(re.escape(pattern), re.IGNORECASE)
-        # Walk through directory
+
+    def _run_search(regex):
+        """Runs the walk+match loop for a given compiled regex. Returns (results, matching_file_count)."""
+        results = []
+        matching_file_count = 0
         for root, dirs, files in os.walk(search_dir):
-            # Skip hidden directories and common exclusions
             dirs[:] = [d for d in dirs if not d.startswith('.') and d not in
                        ['__pycache__', 'venv', '.git', 'dist', 'build']]
             for file in files:
                 filepath = os.path.join(root, file)
                 abs_path = os.path.abspath(filepath)
                 rel_path = os.path.relpath(abs_path, search_dir)
-                # Check if file matches pattern
+
                 matches_file_pattern = False
                 for fp in file_patterns:
                     if PurePath(rel_path).match(fp) or PurePath(file).match(fp):
@@ -263,30 +278,51 @@ def search_code(pattern: str, file_pattern: str = "*") -> str:
                 if not matches_file_pattern:
                     continue
                 matching_file_count += 1
-                filepath = os.path.join(root, file)
-                abs_path = os.path.abspath(filepath)
+
                 try:
-                    # Read file with error handling for binary files
-                    with open(
-                            filepath, 'r',
-                            encoding='utf-8', errors='replace') as f:
+                    with open(filepath, 'r', encoding='utf-8', errors='replace') as f:
                         for line_num, line in enumerate(f, 1):
                             if regex.search(line):
                                 if len(results) >= MAX_RESULTS:
-                                    tcall = f"search_code(pattern={pattern}, file_pattern={file_pattern})="
-                                    return f"{tcall}{'\n'.join(results)} (truncated at {MAX_RESULTS} results)"
-                                results.append(
-                                    f"{abs_path}:{line_num}:{line.rstrip()}")
+                                    return results, matching_file_count, True  # truncated
+                                results.append(f"{abs_path}:{line_num}:{line.rstrip()}")
                 except (PermissionError, OSError):
-                    # Skip binary files, permission denied, etc.
                     continue
+        return results, matching_file_count, False
+
+    try:
+        # First pass: try as-given (regex if valid, else literal fallback on compile failure)
+        try:
+            regex = re.compile(pattern, re.IGNORECASE)
+        except re.error:
+            regex = re.compile(re.escape(pattern), re.IGNORECASE)
+
+        results, matching_file_count, truncated = _run_search(regex)
+
+        # If nothing matched, and the pattern wasn't already treated as literal,
+        # retry once with the pattern fully escaped — handles cases where the
+        # pattern compiled "successfully" as regex but the caller meant it literally
+        # (e.g. brackets like "variable_attrs[0]" being read as a character class).
+        if not results and matching_file_count > 0:
+            escaped_pattern = re.escape(pattern)
+            if escaped_pattern != pattern:
+                literal_regex = re.compile(escaped_pattern, re.IGNORECASE)
+                results, matching_file_count, truncated = _run_search(literal_regex)
+
         if matching_file_count == 0:
             return f"0 files matched file_pattern='{file_pattern}'. \
                 remember to use glob syntax, e.g. '*.py' or '*diophantine*'\
                     — do NOT use regex anchors like $ or ^ here"
+
         if not results:
             return f"No results found for {pattern}"
+
+        if truncated:
+            tcall = f"search_code(pattern={pattern}, file_pattern={file_pattern})="
+            return f"{tcall}{chr(10).join(results)} (truncated at {MAX_RESULTS} results)"
+
         return '\n'.join(results)
+
     except Exception as e:
         return f"Search error: {type(e).__name__}: {str(e)}"
 

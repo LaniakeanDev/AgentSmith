@@ -22,40 +22,55 @@ def reset(tarinfo):
     tarinfo.gname = "root"
     return tarinfo
 
+# def copy_to_container(container: Container, src: Path, dst: Path):
+#     """
+#     Copy a file from local to a docker container
+
+#     Args:
+#         container (Container): Docker container to copy to
+#         src (Path): Source file path
+#         dst (Path): Destination file path in the container
+#     """
+#     # Check if destination path is valid
+#     if os.path.dirname(dst) == "":
+#         raise ValueError(
+#             f"Destination path parent directory cannot be empty!, dst: {dst}"
+#         )
+
+#     # temporary tar file
+#     tar_path = src.with_suffix(".tar")
+#     with tarfile.open(tar_path, "w") as tar:
+#         tar.add(
+#             src, arcname=dst.name, filter=reset
+#         )  # use destination name, so after `put_archive`, name is correct
+
+#     # get bytes for put_archive cmd
+#     with open(tar_path, "rb") as tar_file:
+#         data = tar_file.read()
+
+#     # Make directory if necessary
+#     container.exec_run(f"mkdir -p {dst.parent}")
+
+#     # Send tar file to container and extract
+#     container.put_archive(os.path.dirname(dst), data)
+
+#     # clean up in locally and in container
+#     tar_path.unlink()
+
+
+import base64
+
 def copy_to_container(container: Container, src: Path, dst: Path):
-    """
-    Copy a file from local to a docker container
-
-    Args:
-        container (Container): Docker container to copy to
-        src (Path): Source file path
-        dst (Path): Destination file path in the container
-    """
-    # Check if destination path is valid
-    if os.path.dirname(dst) == "":
-        raise ValueError(
-            f"Destination path parent directory cannot be empty!, dst: {dst}"
-        )
-
-    # temporary tar file
-    tar_path = src.with_suffix(".tar")
-    with tarfile.open(tar_path, "w") as tar:
-        tar.add(
-            src, arcname=dst.name, filter=reset
-        )  # use destination name, so after `put_archive`, name is correct
-
-    # get bytes for put_archive cmd
-    with open(tar_path, "rb") as tar_file:
-        data = tar_file.read()
-
-    # Make directory if necessary
+    data = src.read_bytes()
+    b64 = base64.b64encode(data).decode()
     container.exec_run(f"mkdir -p {dst.parent}")
+    # write via base64 decode, avoids Docker's put_archive ownership handling
+    result = container.exec_run(
+        ["sh", "-c", f"echo {b64} | base64 -d > {dst}"],
+    )
+    if result.exit_code != 0:
+        raise RuntimeError(f"Failed to write {dst}: {result.output.decode()}")
 
-    # Send tar file to container and extract
-    container.put_archive(os.path.dirname(dst), data)
-
-    # clean up in locally and in container
-    tar_path.unlink()
 
 
 def write_to_container(container: Container, data: str, dst: Path):

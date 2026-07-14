@@ -3,6 +3,10 @@
 dump-swe:
 	(cd moulinette && uv run moulinette_eval dump swebench --output ../cache/swebench_task.json)
 
+validate-swe:
+	(cd moulinette && uv run moulinette_eval validate swebench cache/swebench_task.json \
+cache/swebench_solution.json)
+
 dump-swe-task-%:
 	(cd moulinette && uv run moulinette_eval dump swebench --task-id $* --output ../cache/swebench_task.json)
 

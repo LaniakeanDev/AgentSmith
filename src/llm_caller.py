@@ -348,8 +348,7 @@ class LLMCaller:
                 except Exception as e:
                     total_retries += 1
                     if self._is_rate_limit_error(e):
-                        print(f"[{provider}] Key {key_num} rate limited, \
-                            rotating key")
+                        print(f"[{provider}] Key {key_num} rate limited, rotating key")
                         break
                     elif attempt < self.max_retries_per_key - 1:
                         print(f"[{provider}] Key {key_num} error {attempt+1}/\
