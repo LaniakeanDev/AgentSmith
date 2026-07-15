@@ -39,7 +39,8 @@ class SWEBenchCli:
                 provider_url=provider_url,
                 max_iterations=max_iterations,
                 config=config,
-                task=task)
+                task=task,
+                task_type='swebench')
             print("Agent created")
             print("Fetching sandbox manual...")
             asyncio.run(

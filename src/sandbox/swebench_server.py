@@ -9,6 +9,7 @@ import subprocess
 from pathlib import PurePath
 import ast
 
+
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*[mK]')
 
 _OK_RE = re.compile(

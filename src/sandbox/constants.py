@@ -1,7 +1,7 @@
 
 DEFAULT_SERVER_PATH = 'src/fastmcp_server.py'
 
-DEFAULT_SERVER_NAME_MBPP = 'sandbox_mbpp/fastmcp_server.py'
+DEFAULT_SERVER_NAME_MBPP = 'sandbox_mbpp/mbpp_server.py'
 
 DEFAULT_SERVER_NAME_SWEB = 'sandbox/swebench_server.py'
 

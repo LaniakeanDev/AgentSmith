@@ -8,7 +8,11 @@ from .execute import execute
 from pydantic import ValidationError
 from .constants import safe_builtins
 import traceback
-from .constants import DEFAULT_MCP_CMD_MBPP, DEFAULT_MCP_CMD_SWEB, DEFAULT_MCP_CMD
+from .constants import (
+    DEFAULT_MCP_CMD_MBPP,
+    DEFAULT_MCP_CMD_SWEB,
+    DEFAULT_MCP_CMD
+    )
 from .mcp_client import MCPClient
 
 
@@ -20,10 +24,11 @@ class Sandbox:
             inputs = json.loads(input_data)
             self.config = SandboxConfig.model_validate(inputs["config"])
             task_type = inputs["task_type"]
+            self.task_type = task_type
             if self.config.mcp_command is None:
                 if task_type == 'mbpp':
                     self.config.mcp_command = DEFAULT_MCP_CMD_MBPP
-                elif task_type == 'mbpp':
+                elif task_type == 'swebench':
                     self.config.mcp_command = DEFAULT_MCP_CMD_SWEB
                 else:
                     self.config.mcp_command = DEFAULT_MCP_CMD
@@ -32,10 +37,20 @@ class Sandbox:
                 self.eval_script = inputs["eval_script"]
             else:
                 self.eval_script = None
+            if "test_list" in inputs:
+                self.test_list = inputs["test_list"]
+            else:
+                self.test_list = None
             self.mcp_client = MCPClient(
-                self.config.mcp_command, self.eval_script)
+                task_type=task_type,
+                mcp_cmd=self.config.mcp_command,
+                eval_script=self.eval_script,
+                test_list=self.test_list,
+                mbpp_code=self.code
+                )
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
+            # TODO: self.restricted_globals defined
             self.restricted_globals = self.loop.run_until_complete(
                 self.mcp_client.connect_server()
             )
@@ -79,7 +94,8 @@ class Sandbox:
                 config=self.config,
                 restricted_globals=self.restricted_globals)
             if result.output:
-                self.output += f"\nExecution ouput:\n{result.output}"
+                # self.output += f"\nExecution ouput:\n{result.output}"
+                self.output += f"{result.output}"
             if result.success and result.final_answer:
                 print(json.dumps({
                     "success": True,
@@ -158,7 +174,8 @@ class Sandbox:
         builtins = safe_builtins.copy()
         builtins["open"] = self.restricted_open_factory()
         builtins['__import__'] = self.restricted_import_factory()
-        tool_wrappers = await self.mcp_client.build_tool_wrappers(loop=self.loop)
+        tool_wrappers = await self.mcp_client.build_tool_wrappers(
+            loop=self.loop)
         restricted_globals = {
             '__builtins__': builtins,
             'final_answer': self.handle_final_answer,

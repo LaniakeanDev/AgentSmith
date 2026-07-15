@@ -3,57 +3,35 @@
 # from typing import List
 # from agent_mbpp.mbpp_models import (
 #     CallMetrics, MBPPTaskInput, SolutionOutput, StepMetrics)
-import requests
-import time
-import os
+# import requests
+# import time
+# import os
+import sys
+
 from dotenv import load_dotenv
-from models import CallMetrics
+# from models import CallMetrics
 # from sandbox.sandbox_models import ExecutionResult, SandboxConfig
 # from sandbox.spawner import Spawner
 # from groq import Groq
-from groq import Groq
-from cerebras.cloud.sdk import Cerebras
-from google import genai
-
+# from groq import Groq
+# from cerebras.cloud.sdk import Cerebras
+# from google import genai
+from sandbox.mcp_client import MCPClient
+import re
+from constants import PROVIDERS_KEY_CONST_MAP
 
 load_dotenv()
-
-PROVIDERS_KEY_CONST_MAP = {
-    "groq": {
-        "key_name": 'GROQ_API_KEY',
-        "url": 'https://api.groq.com/openai/v1/chat/completions',
-        "model": 'llama-3.3-70b-versatile'
-        },
-    "qwen": {
-        "key_name": 'QWEN_API_KEY',
-        "url": 'https://router.huggingface.co/v1/chat/completions',
-        "model": 'Qwen/Qwen3-32B'
-        },
-    "openrouter": {
-        "key_name": 'OPENROUTER_API_KEY',
-        "url": 'https://openrouter.ai/api/v1/chat/completions',
-        "model": 'openrouter/free'
-        },
-    "cerebras": {
-        "key_name": 'CEREBRAS_API_KEY',
-        "url": 'cerebras_url',
-        "model": 'cerebras/zai-glm-4.7'
-        },
-    "gemini": {
-        "key_name": 'GEMINI_API_KEY',
-        "url": 'gemini_url',
-        "model": 'gemini-3.5-flash'
-        },
-}
-# Cerebras
 
 
 class AbstractAgent:
     def __init__(
             self,
+            task_type: str,
             provider_model: str,
             provider_url: str,
-            max_iterations: int) -> None:
+            max_iterations: int
+            ) -> None:
+        self.task_type = task_type
         self.provider_url = provider_url
         split_provider_model = provider_model.split('/')
         if len(split_provider_model) != 2 or split_provider_model[0] \
@@ -71,180 +49,71 @@ class AbstractAgent:
         self.max_iterations = max_iterations
         self.max_retries = 3
 
-    def rotate_providers(self):
-        return False
+    async def get_sandbox_manual(self):
+        await self.get_mcp_manual()
+        authorized_imports = self.config.authorized_imports
+        for item in authorized_imports:
+            self.authorized_imports += f"{item}, "
+        self.authorized_imports = self.authorized_imports[:-2]
 
-    def call_gemini(self, prompt: str, model='gemini-3.5-flash'):
-        retries = 0
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
-        start_time = time.time()
-        response = client.interactions.create(
-            model=model,
-            input=prompt
+    async def get_mcp_manual(self):
+        client = MCPClient(
+            task_type=self.task_type,
+            mcp_cmd=self.mcp_command
         )
-        elapsed_time_ms = (time.time() - start_time) * 1000
-        call_metrics = CallMetrics(
-            input_tokens=response.usage.total_input_tokens,
-            output_tokens=response.usage.total_output_tokens,
-            request_time_ms=elapsed_time_ms,
-            api_url="gemini_url",
-            model_name=response.model,
-            llm_output=response.output_text,
-            retries=retries,
-            prompt=prompt
-            )
-        return call_metrics
+        try:
+            await client.connect_server()
+        except Exception as e:
+            print(e)
+            sys.exit(1)
+        await client.get_tools()
+        self.mcp_manual = client.generate_sandbox_manual()
+        # print(f"Manual retrieved:\n{manual}")
+        await client.cleanup()
 
-    def call_groq(
-        self, prompt: str, model='llama-3.3-70b-versatile'
-    ) -> CallMetrics:
-        number_of_keys = 2
-        retries = 0
-        max_retries_per_key = 3
-        for key_num in range(1, number_of_keys + 1):
-            for attempt in range(max_retries_per_key):
-                try:
-                    client = Groq(
-                        api_key=os.environ.get(f"GROQ_API_KEY_{key_num}")
-                    )
-                    response = client.chat.completions.create(
-                        messages=[{"role": "user", "content": prompt}],
-                        model=model,
-                    )
-                    api_url = "https://api.groq.com/openai/v1/chat/completions"
-                    return CallMetrics(
-                        input_tokens=response.usage.prompt_tokens,
-                        output_tokens=response.usage.completion_tokens,
-                        request_time_ms=response.usage.total_time * 1000,
-                        api_url=api_url,
-                        model_name=response.model,
-                        llm_output=response.choices[0].message.content,
-                        retries=retries,
-                        prompt=prompt
-                    )
-                except Exception as e:
-                    retries += 1
-                    error_msg = str(e).lower()
-                    # If rate limit and we have retries left on this key, retry
-                    if not ("429" in error_msg or "rate limit" in error_msg) \
-                            and attempt < max_retries_per_key - 1:
-                        time.sleep(1)  # Brief wait before retry
-                        continue
-                    # If rate limit and out of retries, try next key
-                    elif ("429" in error_msg or "rate limit" in error_msg) or \
-                            attempt == max_retries_per_key - 1:
-                        break
-                    else:
-                        raise e
-        # If we get here, all keys are rate limited
-        raise Exception(f"All {number_of_keys} API keys rate limited after \
-                        {retries} total attempts")
-
-    def call_cerebras(self, prompt: str):
-        # !pip install cerebras-cloud-sdk
-        retries = 0
-        client = Cerebras(
-            api_key=os.environ.get("CEREBRAS_API_KEY")
+    def extract_code(self, llm_output: str) -> tuple[str | None, str | None]:
+        pattern = r"```(?:python)?\r?\n(.*?)```"
+        match = re.search(pattern, llm_output, re.DOTALL)
+        if match:
+            code = match.group(1)
+            code = self.sanitize_code(code)
+            truncated_output = llm_output[:match.end(1)]
+            return code, truncated_output
+        # <tool_call>fn(args)</tool_call>
+        pattern = (
+            r"<tool_call>\s*"
+            r"([a-zA-Z_]\w*\([^)]*\))"
+            r"\s*(?:</tool_call>|$)"
         )
-        response = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt
-                }],
-            model="gemma-4-31b",
-            max_completion_tokens=1024,
-            temperature=0.2,
-            top_p=1,
-            stream=False,
-            reasoning_effort="medium"
-        )
-        while response.choices[0].message.content is None:
-            print("Response is None. Retrying...")
-            response = client.chat.completions.create(
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }],
-                model="gemma-4-31b",
-                max_completion_tokens=1024,
-                temperature=0.2,
-                top_p=1,
-                stream=False,
-                reasoning_effort="medium"
-            )
-        call_metrics = CallMetrics(
-            input_tokens=response.usage.prompt_tokens,
-            output_tokens=response.usage.completion_tokens,
-            request_time_ms=response.time_info.total_time * 1000,
-            api_url="cerebras_url",
-            model_name=response.model,
-            llm_output=response.choices[0].message.content,
-            retries=retries,
-            prompt=prompt
-            )
-        return call_metrics
+        match = re.search(pattern, llm_output, re.DOTALL)
+        if match:
+            tool_call = match.group(1)
+            truncated_output = llm_output[:match.end()]
+            return tool_call, truncated_output
+        pattern = r"<tool_call>\s*(.*?)\s*</tool_call>"
+        match = re.search(pattern, llm_output, re.DOTALL)
+        if match:
+            content = match.group(1)
+            name_match = re.match(r"\s*([a-zA-Z_]\w*)", content)
+            if not name_match:
+                return None, None
+            tool_name = name_match.group(1)
+            args = dict(re.findall(
+                r"<arg_key>(.*?)</arg_key>\s*<arg_value>(.*?)</arg_value>",
+                content,
+                re.DOTALL,
+            ))
+            truncated_output = llm_output[:match.end()]
+            parts = []
+            for k, v in args.items():
+                v = v.strip()
+                if not re.fullmatch(r"-?\d+(\.\d+)?|True|False|None", v):
+                    v = repr(v)
+                parts.append(f"{k}={v}")
 
-    def call_llm(self, prompt: str, timeout: int = 30) -> CallMetrics:
-        if self.provider == "groq":
-            return self.call_groq(prompt)
-        elif self.provider == "cerebras":
-            return self.call_cerebras(prompt)
-        elif self.provider == "gemini":
-            return self.call_gemini(prompt)
-        retries_count = 0
-        headers = {
-            "Authorization": f"Bearer {os.environ[self.key_name]}",
-            'Content-Type': 'application/json'
-        }
-        payload = {
-            'model': self.provider_model,
-            'messages': [
-                {'role': 'user', 'content': prompt}
-            ]
-        }
-        # import pprint
-        # import sys
-        # pprint.pprint(payload)
-        # sys.exit(0)
-        answered = False
-        start_time = time.time()
-        for i in range(self.max_retries):
-            try:
-                response = requests.post(
-                    self.provider_url,
-                    json=payload,
-                    headers=headers,
-                    timeout=timeout
-                )
-                response.raise_for_status()
-                answered = True
-                break
-            except requests.exceptions.RequestException as e:
-                retries_count += 1
-                print(f"Attempt {i+1}/{self.max_retries} failed: {e}")
-                time.sleep(1)
-        if answered:
-            elapsed_time_ms = (time.time() - start_time) * 1000
-            result = response.json()
-            # Check if 'usage' and 'choices' exist in response
-            call_metrics = CallMetrics(
-                input_tokens=result['usage']['prompt_tokens'],
-                output_tokens=result['usage']['completion_tokens'],
-                request_time_ms=elapsed_time_ms,
-                api_url=self.provider_url,
-                model_name=self.provider_model,
-                llm_output=result['choices'][0]['message']['content'],
-                retries=retries_count,
-                prompt=prompt
-                )
-            return call_metrics
-        else:
-            if self.rotate_provider():
-                return self.call_llm(prompt, timeout)
-            else:
-                raise RuntimeError("All LLM providers failed")
+            tool_call = f"{tool_name}({', '.join(parts)})"
+            return tool_call, truncated_output
+        return None, None
 
     def sanitize_code(self, code: str) -> str:
         """Replace problematic Unicode characters with ASCII equivalents."""

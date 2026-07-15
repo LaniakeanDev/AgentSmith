@@ -8,18 +8,21 @@ from contextlib import AsyncExitStack
 from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
+from sandbox.sandbox_models import SandboxConfig
+
 
 class MCPClient:
     def __init__(
         self,
         task_type: str,
-        mcp_cmd: str,
+        config: SandboxConfig,
         eval_script: str | None = None,
         test_list: List[str] | None = None,
         mbpp_code: str | None = None
             ):
         self.task_type = task_type
-        self.mcp_cmd = mcp_cmd
+        self.config = config
+        self.mcp_cmd = config.mcp_command
         self.session: Optional[ClientSession] = None
         self.exit_stack: Optional[AsyncExitStack] = None
         self.tools = None
@@ -159,7 +162,7 @@ class MCPClient:
         """Discover tools from MCP server and create callable wrappers."""
         wrappers = {}
         await self.get_tools()
-        # print(f"DEBUG: Found {len(self.tools)} tools: {[t.name for t in self.tools]}")
+        print(f"DEBUG: Found {len(self.tools)} tools: {[t.name for t in self.tools]}")
         for tool in self.tools:
             # Capture tool and loop in closure to avoid late binding issue
             def make_wrapper(tool, loop=loop):
