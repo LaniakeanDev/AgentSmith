@@ -1,8 +1,9 @@
+import asyncio
 import json
 import sys
 from typing import Optional
 import fire
-
+from sandbox.sandbox_models import SandboxConfig
 from src.agent_mbpp.agent_mbpp import MBPPAgent
 from src.agent_mbpp.mbpp_models import MBPPTaskInput
 
@@ -16,7 +17,8 @@ class MBPPCli:
         output: str,
         model_name: str,
         provider_url: str,
-        max_iterations: Optional[int] = 10
+        max_iterations: Optional[int] = 10,
+        config: Optional[SandboxConfig] = SandboxConfig()
     ):
         """
         Run MBPP agent on a given task.
@@ -32,9 +34,20 @@ class MBPPCli:
                 task_data = json.load(f)
             task = MBPPTaskInput.model_validate(task_data)
             agent = MBPPAgent(
-                provider_model=model_name, provider_url=provider_url,
-                max_iterations=max_iterations)
-            solution = agent.solve_task(task)
+                task_type='mbpp',
+                provider_model=model_name,
+                provider_url=provider_url,
+                max_iterations=max_iterations,
+                config=config,
+                task=task,
+                mcp_command=None
+                )
+            print("Agent created")
+            print("Fetching sandbox manual...")
+            asyncio.run(
+                agent.get_sandbox_manual()
+            )
+            solution = agent.solve_task()
             with open(output, 'w') as f:
                 f.write(solution.model_dump_json(indent=2))
         except Exception as e:

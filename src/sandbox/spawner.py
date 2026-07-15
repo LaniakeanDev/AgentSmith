@@ -68,7 +68,7 @@ class Spawner:
             # container_name: str
               ) -> ExecutionResult:
         """Execute LLM-generated code in restricted environment"""
-        if isinstance(self.task, MBPPTaskInput):
+        if hasattr(self.task, 'test_list'):
             task_type = "mbpp"
             subprocess_inputs = {
                 "config": self.config.model_dump(),
@@ -76,10 +76,7 @@ class Spawner:
                 "task_type": task_type,
                 "test_list": self.task.test_list
             }
-            print("MBPP task. To be refactored")
-            import sys
-            sys.exit(0)
-        elif isinstance(self.task, SWEBenchTaskInput):
+        elif hasattr(self.task, 'eval_script'):
             task_type = "swebench"
             subprocess_inputs = {
                 "config": self.config.model_dump(),

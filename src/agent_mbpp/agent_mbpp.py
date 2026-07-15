@@ -1,150 +1,65 @@
 import re
+import subprocess
+import sys
 from typing import List
 from agent_mbpp.mbpp_models import (
     MBPPTaskInput, SolutionOutput, StepMetrics)
+from src.abstract_agent import AbstractAgent
+from src.llm_caller import LLMCaller
 from ..models import CallMetrics
-import requests
 import time
-import os
-from dotenv import load_dotenv
+# from dotenv import load_dotenv
 from sandbox.sandbox_models import ExecutionResult, SandboxConfig
 from sandbox.spawner import Spawner
-from groq import Groq
 
-load_dotenv()
-
-PROVIDERS = ["groq", "openrouter", "qwen"]
-# add Cerebras
+# load_dotenv()
 
 
-class MBPPAgent:
+class MBPPAgent(AbstractAgent):
     def __init__(
             self,
+            task_type: str,
             provider_model: str,
             provider_url: str,
-            max_iterations: int) -> None:
-        split_provider_model = provider_model.split('/')
-        if len(split_provider_model) != 2 or split_provider_model[0] \
-                not in PROVIDERS:
-            print(f"WARNING: Provider/model invalid: {provider_model}")
-            print("Switching to Groq/llama-3.3-70b-versatile instead")
-            self.provider, self.model_name = "groq", "llama-3.3-70b-versatile"
+            max_iterations: int,
+            config: SandboxConfig,
+            task: MBPPTaskInput,
+            mcp_command: str | None = None) -> None:
+        super().__init__(task_type, provider_model, provider_url, max_iterations)
+        self.task = task
+        self.mcp_manual: str | None = None
+        self.authorized_imports = ""
+        self.config = config
+        self.og_prompt = ""
+        self.prompt_ext = ""
+        self.image_name = "sandbox-image"
+        self.container_name = f"{self.image_name}_container"
+        self.iteration = 0
+        if mcp_command is None:
+            self.mcp_command = "uv run python sandbox/mbpp_server.py"
         else:
-            self.provider = split_provider_model[0].lower()
-            self.model_name = split_provider_model[1]
-        self.provider_url = provider_url
-        self.max_iterations = max_iterations
-
-    def call_qwen(
-            self, prompt: str, model="Qwen/Qwen2.5-7B-Instruct"
-            ) -> CallMetrics:
-        retries = 0
-        API_URL = "https://router.huggingface.co/v1/chat/completions"
-        headers = {
-            "Authorization": f"Bearer {os.environ['QWEN_API_KEY']}",
-        }
-
-        def query(payload):
-            response = requests.post(API_URL, headers=headers, json=payload)
-            return response.json()
-        start_time = time.time()
-        response = query({
-            "messages": [
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "model": model
-        })
-        elapsed_time_ms = (time.time() - start_time) * 1000
-        response_data = response.json()
-        call_metrics = CallMetrics(
-            input_tokens=response_data['usage']['prompt_tokens'],
-            output_tokens=response_data['usage']['completion_tokens'],
-            request_time_ms=elapsed_time_ms,
-            api_url=API_URL,
-            model_name=response_data.get('model', model),
-            llm_output=response_data['choices'][0]['message']['content'],
-            retries=retries,
-            prompt=prompt
-            )
-        return call_metrics
-
-    def call_groq(
-            self, prompt: str, model='llama-3.3-70b-versatile'
-            ) -> CallMetrics:
-        retries = 0
-        client = Groq(
-            api_key=os.environ.get("GROQ_API_KEY"),
+            self.mcp_command = mcp_command
+        self.spawner = Spawner(
+            config=config,
+            task=task,
+            mcp_command=self.mcp_command
         )
-        response = client.chat.completions.create(
-            messages=[
-                {
-                    "role": "user",
-                    "content": prompt,
-                }
-            ],
-            model=model,
-        )
-        call_metrics = CallMetrics(
-            input_tokens=response.usage.prompt_tokens,
-            output_tokens=response.usage.completion_tokens,
-            request_time_ms=response.usage.total_time * 1000,
-            api_url="https://api.groq.com/openai/v1/chat/completions",
-            model_name=response.model,
-            llm_output=response.choices[0].message.content,
-            retries=retries,
-            prompt=prompt
+        self.all_tests_passed = False
+        self.caller = LLMCaller(
+            provider="cerebras",
+            max_retries_per_key=3
             )
-        return call_metrics
-
-    def call_openrouter(
-            self, prompt: str, model='openrouter/free'
-            ) -> CallMetrics | str:
-        """Make a call to OpenRouter API"""
-        retries = 0
-        OPENROUTER_API_KEY = os.getenv('OPENROUTER_API_KEY')
-        headers = {
-            'Authorization': f'Bearer {OPENROUTER_API_KEY}',
-            'Content-Type': 'application/json'
-        }
-        payload = {
-            'model': model,
-            'messages': [
-                {'role': 'user', 'content': prompt}
-            ]
-        }
-        start_time = time.time()
-        response = requests.post(
-            'https://openrouter.ai/api/v1/chat/completions',
-            json=payload,
-            headers=headers,
-            timeout=30
-        )
-        elapsed_time_ms = (time.time() - start_time) * 1000
-        result = response.json()
-        call_metrics = CallMetrics(
-            input_tokens=result['usage']['prompt_tokens'],
-            output_tokens=result['usage']['completion_tokens'],
-            request_time_ms=elapsed_time_ms,
-            api_url='https://openrouter.ai/api/v1/chat/completions',
-            model_name=result.get('model', model),
-            llm_output=result['choices'][0]['message']['content'],
-            retries=retries,
-            prompt=prompt
-            )
-        return call_metrics
-
-# task = {
-#     "text": "Write a function to find the n-th rectangular number.",
-#     "code": "def find_rect_num(n):\r\n  return n*(n + 1) ",
-#     "task_id": 35,
-#     "test_setup_code": "",
-#     "test_list": ["assert find_rect_num(4) == 20", "assert find_rect_num(5) \
-# == 30", "assert find_rect_num(6) == 42"],
-#     "challenge_test_list": []
-#     }
+        # split_provider_model = provider_model.split('/')
+        # if len(split_provider_model) != 2 or split_provider_model[0] \
+        #         not in PROVIDERS:
+        #     print(f"WARNING: Provider/model invalid: {provider_model}")
+        #     print("Switching to Groq/llama-3.3-70b-versatile instead")
+        #     self.provider, self.model_name = "groq", "llama-3.3-70b-versatile"
+        # else:
+        #     self.provider = split_provider_model[0].lower()
+        #     self.model_name = split_provider_model[1]
+        # self.provider_url = provider_url
+        # self.max_iterations = max_iterations
 
     def sanitize_code(self, code: str) -> str:
         """Replace problematic Unicode characters with ASCII equivalents."""
@@ -162,55 +77,116 @@ class MBPPAgent:
             code = code.replace(unicode_char, ascii_char)
         return code
 
-    def call_llm(self, prompt: str) -> CallMetrics:
-        if self.provider == 'openrouter':
-            print("Sending request to Openrouter ...")
-            metrics = self.call_openrouter(prompt)
-        elif self.provider == 'qwen':
-            print("Sending request to Qwen ...")
-            metrics = self.call_qwen(prompt)
+    def image_exists(self):
+        try:
+            subprocess.run(
+                ['docker', 'image', 'inspect', self.image_name],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            return True
+        except subprocess.CalledProcessError:
+            return False
+
+    def build_image(self) -> None:
+        if not self.image_exists():
+            print("building Image...")
+            build_result = subprocess.run([
+                "docker", "build",
+                "--network=host",
+                "-t", self.image_name,
+                "-f", "./src/sandbox/Dockerfile.mbpp",
+                "./src/sandbox"
+            ], capture_output=True, text=True)
+            if build_result.returncode != 0:
+                raise RuntimeError(f"Build failed: {build_result.stderr}")
+            print(f"Image built: {self.image_name}")
         else:
-            print("Sending request to Groq ...")
-            metrics = self.call_groq(prompt)
-        return metrics
+            print(f"Using pre-built image: {self.image_name}")
+
+    def container_exists(self):
+        try:
+            subprocess.run(
+                ['docker', 'container', 'inspect', self.container_name],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            return True
+        except subprocess.CalledProcessError:
+            return False
+
+    def container_is_running(self):
+        check_cmd = [
+            "docker", "inspect", "-f",
+            "{{.State.Status}}", self.container_name
+            ]
+        try:
+            result = subprocess.run(check_cmd, capture_output=True, text=True)
+            status = result.stdout.strip()
+            return status == "running"
+        except Exception as e:
+            print(f"Container check failed: {e}")
+            raise
+            # Create/start container here if needed
+
+    def start_container(self):
+        if not self.container_exists() or not self.container_is_running():
+            docker_cmd = [
+                "docker", "run", "-d",  # detached, long-lived
+                "--name", self.container_name,
+                "--network=none", "--cap-drop=ALL",
+                "--security-opt=no-new-privileges",
+                "--pids-limit=64",
+                f"--memory={self.config.max_memory_mb}m", "--cpus=1",
+                self.image_name,
+                "sleep", "infinity"
+            ]
+            subprocess.run(docker_cmd, check=True)
+        else:
+            print(f"Using pre-built container: {self.image_name}")
+
+    def stop_container(self) -> None:
+        print("Stopping container...")
+        if self.container_name:
+            subprocess.run(["docker", "rm", "-f", self.container_name],
+                           capture_output=True, text=True)
+        print("Removing image...")
+        if self.image_name:
+            subprocess.run(["docker", "rmi", "-f", self.image_name],
+                           capture_output=True, text=True)
 
     def sandbox_exec(
-            self, llm_output: str, test_list: List[str]
+            self,
+            extracted_code: str
             ) -> ExecutionResult:
-        pattern = r'```python\n(.*?)```'
-        match = re.search(pattern, llm_output, re.DOTALL)
-        if match:
-            code = match.group(1)
-            code = self.sanitize_code(code)
-        else:
-            return ExecutionResult(
-                success=False,
-                output="No output",
-                error="No valid code block was found in the model's response"
-            ), ""
-        split_code = code.split("\n")
-        code = ""
-        for line in split_code:
-            if "assert" not in line and "test" not in line.lower() \
-                    and "if __name__ ==" not in line:
-                code += line + '\n'
-        test_code = "\nsuccess = True"
-        for test in test_list:
-            func_call = test[6:].split('==')[0]
-            test_code += f"""\ntry:\n    {test}\n    print(\"\"\"Passed test: \
-'{test}'\"\"\")\nexcept AssertionError:\n    print(f\"\"\"Failed test: \
-'{test}' got {{{func_call}}} instead\"\"\")\n    success = False\n"""
-        test_code += f"""\nif success:\n    final_answer(\'\'\'{code}\'\'\')"""
-        code += '\n\n' + test_code
-        # print("\n\nafter generating the code:")
-        # print(code)
-        config = SandboxConfig()
-        server_path = 'src/fastmcp_server.py'
-        spawner = Spawner(config, server_path)
-        # spawner.configure()
-        result = spawner.spawn(code)
-        print("Code executed in the sandbox")
-        return result, code
+        exec_cmd = [
+            "docker", "exec", "-i", self.container_name, "python",
+            "-m", "sandbox"]
+        try:
+            return self.spawner.spawn(
+                code=extracted_code,
+                docker_cmd=exec_cmd,
+            )
+        except Exception as e:
+            print(f"Agent.sandbox_exec: {type(e).__name__}: {str(e)}")
+            raise
+
+    def get_prompt(self):
+        prompt = f"# MCP manual\n{self.mcp_manual}\n"
+        prompt += "### final_solution(function_definition: str)\n"
+        prompt += "Submits the function's python code as a string\n"
+        prompt += "Once print(run_tests()) indicates success, "
+        prompt += "call final_answer('function_definition') "
+        prompt += "on the next iteration.\n"
+        prompt += "\n# Task definition\n"
+        prompt += self.task.task_definition
+        prompt += "\n# Function definition\n"
+        prompt += self.task.function_definition
+        prompt += "\n\n# Guideline"
+        prompt += "\nReply with nothing but the code starting by '```python':"
+        return prompt
 
     def get_new_prompt(
             self, prompt: str, code: str, exec_output: str,
@@ -218,110 +194,173 @@ class MBPPAgent:
         new_prompt = f"{prompt}\n\nIteration {iteration_count}:\ncode: {code}"
         new_prompt += '\n' + message + '\n'
         new_prompt += f"execution output: {exec_output}\n"
-        new_prompt += "Think for no more than 128 tokens, then make the next iteration"
+        new_prompt += "Make the next iteration"
         return new_prompt
 
-    def solve_task(
-            self,
-            task: MBPPTaskInput) -> SolutionOutput:
-        task_start = time.time()
-        prompt = task.task_definition + "\nTest list: " + str(task.test_list)
-        prompt += " reply with nothing but the code starting by '```python':"
-        iteration_count = 1
-        print("\nIteration 1")
-        call_metrics = self.call_llm(prompt)
-        llm_output = call_metrics.llm_output.strip()
-        result, code = self.sandbox_exec(
-            llm_output=llm_output, test_list=task.test_list)
+    def add_tests(self, code: str) -> str:
+        if 'run_tests()' not in code:
+            return f"{code}\nrun_tests()"
+        return code
+
+    def solve_task(self) -> SolutionOutput:
+        try:
+            self.build_image()
+            self.start_container()
+        except Exception as e:
+            print(f"Agent: {type(e).__name__}: {str(e)}")
+            sys.exit(1)
         step_metrics_list: List[StepMetrics] = []
-        step_metrics = self.get_step_metrics(
-            code=code,
-            result=result,
-            call_metrics=call_metrics,
-            iteration_count=iteration_count
-        )
-        step_metrics_list.append(step_metrics)
-        # print(result)
-        while result.final_answer is None and \
-                iteration_count <= 1:
-            # iteration_count <= self.max_iterations:
-            exec_output = result.output
-            if result.success:
-                message = "\nExecution completed but some tests failed"
-            else:
-                message = f"\nExecution could not complete: {result.error}"
-            print(message)
-            prompt = self.get_new_prompt(
-                prompt=prompt,
-                code=code,
-                exec_output=exec_output,
-                iteration_count=iteration_count,
-                message=message
-                )
-            iteration_count += 1
-            print(f"\nIteration {iteration_count}")
-            call_metrics = self.call_llm(prompt)
-            llm_output = call_metrics.llm_output.strip()
-            result, code = self.sandbox_exec(
-                llm_output=llm_output, test_list=task.test_list)
-            step_metrics = self.get_step_metrics(
-                code=code,
-                result=result,
-                call_metrics=call_metrics,
-                iteration_count=iteration_count
-            )
-            step_metrics_list.append(step_metrics)
-        task_duration = time.time() - task_start
-        print()
-        if not result.final_answer:
-            print("Could not solve this problem")
+        task_start = time.time()
+        prompt = self.get_prompt()
+        # print(prompt)
+        # sys.exit(0)
+        self.iteration += 1
+        print("\nIteration 1")
+        call_metrics = self.caller.call_llm(prompt)
+        print("Response received")
+        llm_output = call_metrics.llm_output.strip()
+        # print(f"\nllm_output:\n{llm_output}\n")
+        extracted_code, _ = self.extract_code(llm_output)
+        print(f"extracted_code:\n{extracted_code}")
+        while extracted_code is None and \
+                self.iteration < self.max_iterations:
+            extracted_code = self.no_extr_code_retry(
+                prompt, llm_output)
+        if extracted_code is None:
+            task_duration = time.time() - self.task_start
             return SolutionOutput(
-                task_id=str(task.task_id),
+                task_id=str(self.task.instance_id),
                 benchmark="mbpp",
                 success=False,
-                solution="Solution not found",
+                solution="Maximum number of iterations hit, no extracted code",
                 system_prompt=prompt,
-                iterations=iteration_count,
+                iterations=self.iteration,
                 total_requests=sum(
-                    met.retries + 1 for met in step_metrics_list),
+                    met.retries + 1 for met in self.step_metrics_list),
                 total_input_tokens=sum(
-                    met.input_tokens for met in step_metrics_list),
+                    met.input_tokens for met in self.step_metrics_list),
                 total_output_tokens=sum(
-                    met.output_tokens for met in step_metrics_list),
+                    met.output_tokens for met in self.step_metrics_list),
                 total_time_seconds=task_duration,
-                steps=step_metrics_list,
-                error=result.error
+                steps=self.step_metrics_list,
+                error="No extracted code"
             )
-        else:
-            print("\nProblem solved! The solution is:\n")
-            print(result.final_answer)
-            print(result.output)
-            return SolutionOutput(
-                task_id=str(task.task_id),
-                benchmark="mbpp",
-                success=True,
-                solution=result.final_answer,
-                system_prompt=prompt,
-                iterations=iteration_count,
-                total_requests=sum(
-                    met.retries + 1 for met in step_metrics_list),
-                total_input_tokens=sum(
-                    met.input_tokens for met in step_metrics_list),
-                total_output_tokens=sum(
-                    met.output_tokens for met in step_metrics_list),
-                total_time_seconds=task_duration,
-                steps=step_metrics_list,
+        code = self.add_tests(extracted_code)
+        print(f"\ncode:\n{code}\n")
+        try:
+            print("Executing in sandbox...")
+            result = self.sandbox_exec(code)
+            step_metrics = self.get_step_metrics(
+                code=extracted_code,
+                result=result,
+                call_metrics=call_metrics,
+                iteration_count=self.iteration
             )
-
-    # if result.final_answer:
-    #     print("Problem solved! The solution is:")
-    #     print(result.final_answer)
-    # elif result.success:
-    #     print("Execution was able to complete but some tests failed")
-    #     print(result.output)
-    # else:
-    #     print("\nExecution could not complete:")
-    #     print(result.error)
+            step_metrics_list.append(step_metrics)
+            print(f"result:\n{str(result)}")
+            sys.exit(0)
+            while result.final_answer is None and \
+                    self.iteration < self.max_iterations:
+                exec_output = result.output
+                if result.success:
+                    message = "\nExecution completed but some tests failed:"
+                    message += f"\n{exec_output}"
+                else:
+                    message = f"\nExecution could not complete:\n{result.error}"
+                print(message)
+                print("making new prompt...")
+                prompt = self.get_new_prompt(
+                    prompt=prompt,
+                    code=code,
+                    exec_output=exec_output,
+                    iteration_count=self.iteration,
+                    message=message
+                    )
+                print("new prompt made")
+                self.iteration += 1
+                print(f"\nIteration {self.iteration}")
+                call_metrics = self.caller.call_llm(prompt)
+                print("Response received")
+                llm_output = call_metrics.llm_output.strip()
+                print(f"\nllm_output:\n{llm_output}\n")
+                extracted_code, _ = self.extract_code(llm_output)
+                while extracted_code is None and \
+                        self.iteration < self.max_iterations:
+                    extracted_code = self.no_extr_code_retry(
+                        prompt, llm_output)
+                if extracted_code is None:
+                    task_duration = time.time() - self.task_start
+                    return SolutionOutput(
+                        task_id=str(self.task.instance_id),
+                        benchmark="mbpp",
+                        success=False,
+                        solution="Maximum number of iterations hit, no extracted code",
+                        system_prompt=prompt,
+                        iterations=self.iteration,
+                        total_requests=sum(
+                            met.retries + 1 for met in self.step_metrics_list),
+                        total_input_tokens=sum(
+                            met.input_tokens for met in self.step_metrics_list),
+                        total_output_tokens=sum(
+                            met.output_tokens for met in self.step_metrics_list),
+                        total_time_seconds=task_duration,
+                        steps=self.step_metrics_list,
+                        error="No extracted code"
+                    )
+                code = self.add_tests(extracted_code)
+                result = self.sandbox_exec(code)
+                step_metrics = self.get_step_metrics(
+                    code=code,
+                    result=result,
+                    call_metrics=call_metrics,
+                    iteration_count=self.iteration
+                )
+                step_metrics_list.append(step_metrics)
+            task_duration = time.time() - task_start
+            print()
+            if not result.final_answer:
+                print("Could not solve this problem")
+                return SolutionOutput(
+                    task_id=str(self.task.task_id),
+                    benchmark="mbpp",
+                    success=False,
+                    solution="Solution not found",
+                    system_prompt=prompt,
+                    iterations=self.iteration,
+                    total_requests=sum(
+                        met.retries + 1 for met in step_metrics_list),
+                    total_input_tokens=sum(
+                        met.input_tokens for met in step_metrics_list),
+                    total_output_tokens=sum(
+                        met.output_tokens for met in step_metrics_list),
+                    total_time_seconds=task_duration,
+                    steps=step_metrics_list,
+                    error=result.error
+                )
+            else:
+                print("\nProblem solved! The solution is:\n")
+                print(result.final_answer)
+                print(result.output)
+                return SolutionOutput(
+                    task_id=str(self.task.task_id),
+                    benchmark="mbpp",
+                    success=True,
+                    solution=result.final_answer,
+                    system_prompt=prompt,
+                    iterations=self.iteration,
+                    total_requests=sum(
+                        met.retries + 1 for met in step_metrics_list),
+                    total_input_tokens=sum(
+                        met.input_tokens for met in step_metrics_list),
+                    total_output_tokens=sum(
+                        met.output_tokens for met in step_metrics_list),
+                    total_time_seconds=task_duration,
+                    steps=step_metrics_list,
+                )
+        except Exception as e:
+            print(f"Agent: {type(e).__name__}: {str(e)}")
+        finally:
+            self.stop_container()
 
     def get_step_metrics(
             self,
@@ -333,7 +372,9 @@ class MBPPAgent:
         if result.final_answer:
             sandbox_output = result.final_answer
         elif result.success:
-            sandbox_output = result.output + '\n' + result.error
+            sandbox_output = result.output + '\n'
+            if result.error is not None:
+                sandbox_output += result.error
         else:
             sandbox_output = result.error
         return StepMetrics(
@@ -349,7 +390,3 @@ class MBPPAgent:
             sandbox_output=sandbox_output,
             prompt=call_metrics.prompt
         )
-
-
-# if __name__ == '__main__':
-#     solve_task(task, "Groq")

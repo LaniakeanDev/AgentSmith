@@ -3,6 +3,7 @@ from typing import Optional, List
 import os
 import time
 import requests
+from constants import PROVIDERS_KEY_CONST_MAP
 
 
 # ==================== Custom Exceptions ====================
@@ -43,38 +44,38 @@ class CallMetrics:
 
 # ==================== Configuration ====================
 
-PROVIDERS_KEY_CONST_MAP = {
-    "groq": {
-        "key_name": 'GROQ_API_KEY',
-        "url": 'https://api.groq.com/openai/v1/chat/completions',
-        "model": 'llama-3.3-70b-versatile',
-        "num_keys": 3
-    },
-    "qwen": {
-        "key_name": 'QWEN_API_KEY',
-        "url": 'https://router.huggingface.co/v1/chat/completions',
-        "model": 'Qwen/Qwen3-32B',
-        "num_keys": 3
-    },
-    "openrouter": {
-        "key_name": 'OPENROUTER_API_KEY',
-        "url": 'https://openrouter.ai/api/v1/chat/completions',
-        "model": 'openrouter/free',
-        "num_keys": 4
-    },
-    "cerebras": {
-        "key_name": 'CEREBRAS_API_KEY',
-        "url": 'cerebras_url',
-        "model": 'cerebras/zai-glm-4.7',
-        "num_keys": 3
-    },
-    "gemini": {
-        "key_name": 'GEMINI_API_KEY',
-        "url": 'gemini_url',
-        "model": 'gemini-3.5-flash',
-        "num_keys": 3
-    },
-}
+# PROVIDERS_KEY_CONST_MAP = {
+#     "groq": {
+#         "key_name": 'GROQ_API_KEY',
+#         "url": 'https://api.groq.com/openai/v1/chat/completions',
+#         "model": 'llama-3.3-70b-versatile',
+#         "num_keys": 3
+#     },
+#     "qwen": {
+#         "key_name": 'QWEN_API_KEY',
+#         "url": 'https://router.huggingface.co/v1/chat/completions',
+#         "model": 'Qwen/Qwen3-32B',
+#         "num_keys": 3
+#     },
+#     "openrouter": {
+#         "key_name": 'OPENROUTER_API_KEY',
+#         "url": 'https://openrouter.ai/api/v1/chat/completions',
+#         "model": 'openrouter/free',
+#         "num_keys": 4
+#     },
+#     "cerebras": {
+#         "key_name": 'CEREBRAS_API_KEY',
+#         "url": 'cerebras_url',
+#         "model": 'cerebras/zai-glm-4.7',
+#         "num_keys": 3
+#     },
+#     "gemini": {
+#         "key_name": 'GEMINI_API_KEY',
+#         "url": 'gemini_url',
+#         "model": 'gemini-3.5-flash',
+#         "num_keys": 3
+#     },
+# }
 
 # Default priority order for provider rotation
 DEFAULT_PROVIDER_PRIORITY = ["gemini", "cerebras", "groq", "qwen", "openrouter"]
@@ -95,6 +96,7 @@ class LLMCaller:
         self._initial_provider = provider
         self._initial_provider_index = self.provider_priority.index(provider)
         self.current_provider_index = self._initial_provider_index
+        # self.model_name = ""
 
     def reset_provider(self):
         """Reset to initial provider (useful for multiple independent calls)"""
@@ -106,6 +108,7 @@ class LLMCaller:
         config = PROVIDERS_KEY_CONST_MAP[provider]
         base_key = config["key_name"]
         num_keys = config.get("num_keys", 1)
+        self.model_name = config["model"].split('/')[1]
 
         if key_num > num_keys:
             return None
@@ -134,7 +137,7 @@ class LLMCaller:
 
         start_time = time.time()
         response = client.interactions.create(
-            model=config["model"],
+            model=self.model_name,
             input=prompt,
             extra_body={
                 "stopSequences": ["\n```\n"],
@@ -189,16 +192,16 @@ class LLMCaller:
 
     def _call_cerebras_single(self, prompt: str, key_num: int) -> CallMetrics:
         """Single Cerebras API call with specific key"""
-        print("Calling Cerebras...")
         from cerebras.cloud.sdk import Cerebras
         api_key = self._get_api_key("cerebras", key_num)
         if not api_key:
             raise RateLimitError(f"No API key for cerebras_{key_num}")
+        print(f"Calling Cerebras ({self.model_name})...")
         config = PROVIDERS_KEY_CONST_MAP["cerebras"]
         client = Cerebras(api_key=api_key)
         response = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model=config["model"],
+            model=self.model_name,
             stop=["\n```\n"]
         )
         # Handle None response (Cerebras-specific issue)
@@ -210,7 +213,7 @@ class LLMCaller:
             print(f"[cerebras] Response None, retry {none_retries}/3")
             response = client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
-                model=config["model"],
+                model=self.model_name,
                 max_completion_tokens=256,
                 stream=False,
             )

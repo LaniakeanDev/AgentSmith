@@ -22,13 +22,14 @@ def remove_repeated_lines(text):
 class SWEBenchAgent(AbstractAgent):
     def __init__(
             self,
+            task_type: str,
             provider_model: str,
             provider_url: str,
             max_iterations: int,
             config: SandboxConfig,
             task: SWEBenchTaskInput,
             mcp_command: str | None = None):
-        super().__init__(provider_model, provider_url, max_iterations)
+        super().__init__(task_type, provider_model, provider_url, max_iterations)
         self.task = task
         self.mcp_manual: str | None = None
         self.authorized_imports = ""
@@ -53,68 +54,68 @@ class SWEBenchAgent(AbstractAgent):
             max_retries_per_key=3
             )
 
-    async def get_sandbox_manual(self):
-        await self.get_mcp_manual()
-        authorized_imports = self.config.authorized_imports
-        for item in authorized_imports:
-            self.authorized_imports += f"{item}, "
-        self.authorized_imports = self.authorized_imports[:-2]
+    # async def get_sandbox_manual(self):
+    #     await self.get_mcp_manual()
+    #     authorized_imports = self.config.authorized_imports
+    #     for item in authorized_imports:
+    #         self.authorized_imports += f"{item}, "
+    #     self.authorized_imports = self.authorized_imports[:-2]
 
-    async def get_mcp_manual(self):
-        client = MCPClient(self.mcp_command, "")
-        try:
-            await client.connect_server()
-        except Exception as e:
-            print(e)
-            sys.exit(1)
-        await client.get_tools()
-        self.mcp_manual = client.generate_sandbox_manual()
-        # print(f"Manual retrieved:\n{manual}")
-        await client.cleanup()
+    # async def get_mcp_manual(self):
+    #     client = MCPClient(self.mcp_command, "")
+    #     try:
+    #         await client.connect_server()
+    #     except Exception as e:
+    #         print(e)
+    #         sys.exit(1)
+    #     await client.get_tools()
+    #     self.mcp_manual = client.generate_sandbox_manual()
+    #     # print(f"Manual retrieved:\n{manual}")
+    #     await client.cleanup()
 
-    def extract_code(self, llm_output: str) -> tuple[str | None, str | None]:
-        pattern = r"```(?:python)?\r?\n(.*?)```"
-        match = re.search(pattern, llm_output, re.DOTALL)
-        if match:
-            code = match.group(1)
-            code = self.sanitize_code(code)
-            truncated_output = llm_output[:match.end(1)]
-            return code, truncated_output
-        # <tool_call>fn(args)</tool_call>
-        pattern = (
-            r"<tool_call>\s*"
-            r"([a-zA-Z_]\w*\([^)]*\))"
-            r"\s*(?:</tool_call>|$)"
-        )
-        match = re.search(pattern, llm_output, re.DOTALL)
-        if match:
-            tool_call = match.group(1)
-            truncated_output = llm_output[:match.end()]
-            return tool_call, truncated_output
-        pattern = r"<tool_call>\s*(.*?)\s*</tool_call>"
-        match = re.search(pattern, llm_output, re.DOTALL)
-        if match:
-            content = match.group(1)
-            name_match = re.match(r"\s*([a-zA-Z_]\w*)", content)
-            if not name_match:
-                return None, None
-            tool_name = name_match.group(1)
-            args = dict(re.findall(
-                r"<arg_key>(.*?)</arg_key>\s*<arg_value>(.*?)</arg_value>",
-                content,
-                re.DOTALL,
-            ))
-            truncated_output = llm_output[:match.end()]
-            parts = []
-            for k, v in args.items():
-                v = v.strip()
-                if not re.fullmatch(r"-?\d+(\.\d+)?|True|False|None", v):
-                    v = repr(v)
-                parts.append(f"{k}={v}")
+    # def extract_code(self, llm_output: str) -> tuple[str | None, str | None]:
+    #     pattern = r"```(?:python)?\r?\n(.*?)```"
+    #     match = re.search(pattern, llm_output, re.DOTALL)
+    #     if match:
+    #         code = match.group(1)
+    #         code = self.sanitize_code(code)
+    #         truncated_output = llm_output[:match.end(1)]
+    #         return code, truncated_output
+    #     # <tool_call>fn(args)</tool_call>
+    #     pattern = (
+    #         r"<tool_call>\s*"
+    #         r"([a-zA-Z_]\w*\([^)]*\))"
+    #         r"\s*(?:</tool_call>|$)"
+    #     )
+    #     match = re.search(pattern, llm_output, re.DOTALL)
+    #     if match:
+    #         tool_call = match.group(1)
+    #         truncated_output = llm_output[:match.end()]
+    #         return tool_call, truncated_output
+    #     pattern = r"<tool_call>\s*(.*?)\s*</tool_call>"
+    #     match = re.search(pattern, llm_output, re.DOTALL)
+    #     if match:
+    #         content = match.group(1)
+    #         name_match = re.match(r"\s*([a-zA-Z_]\w*)", content)
+    #         if not name_match:
+    #             return None, None
+    #         tool_name = name_match.group(1)
+    #         args = dict(re.findall(
+    #             r"<arg_key>(.*?)</arg_key>\s*<arg_value>(.*?)</arg_value>",
+    #             content,
+    #             re.DOTALL,
+    #         ))
+    #         truncated_output = llm_output[:match.end()]
+    #         parts = []
+    #         for k, v in args.items():
+    #             v = v.strip()
+    #             if not re.fullmatch(r"-?\d+(\.\d+)?|True|False|None", v):
+    #                 v = repr(v)
+    #             parts.append(f"{k}={v}")
 
-            tool_call = f"{tool_name}({', '.join(parts)})"
-            return tool_call, truncated_output
-        return None, None
+    #         tool_call = f"{tool_name}({', '.join(parts)})"
+    #         return tool_call, truncated_output
+    #     return None, None
 
     def build_image(self) -> None:
         print("building Image...")
@@ -190,6 +191,12 @@ class SWEBenchAgent(AbstractAgent):
         )
 
     def handle_task(self):
+        try:
+            self.build_image()
+            self.start_container()
+        except Exception as e:
+            print(f"Agent: {type(e).__name__}: {str(e)}")
+            sys.exit(1)
         self.step_metrics_list: List[StepMetrics] = []
         self.task_start = time.time()
         prompt = self.get_prompt()
@@ -227,12 +234,6 @@ class SWEBenchAgent(AbstractAgent):
                 steps=self.step_metrics_list,
                 error="No extracted code"
             )
-        try:
-            self.build_image()
-            self.start_container()
-        except Exception as e:
-            print(f"Agent: {type(e).__name__}: {str(e)}")
-            sys.exit(1)
         try:
             print("Executing in sandbox...")
             result = self.sandbox_exec(extracted_code)
