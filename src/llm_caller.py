@@ -108,11 +108,13 @@ class LLMCaller:
         config = PROVIDERS_KEY_CONST_MAP[provider]
         base_key = config["key_name"]
         num_keys = config.get("num_keys", 1)
-        self.model_name = config["model"].split('/')[1]
-
+        split_model = config["model"].split('/')
+        if len(split_model) > 1:
+            self.model_name = config["model"].split('/')[1]
+        else:
+            self.model_name = config["model"]
         if key_num > num_keys:
             return None
-
         key_name = base_key if num_keys == 1 else f"{base_key}_{key_num}"
         return os.environ.get(key_name)
 
@@ -148,13 +150,15 @@ class LLMCaller:
         llm_output = response.output_text
         if llm_output is None or llm_output == 'None':
             raise Exception("llm_output is None")
+        if not llm_output.endswith("```"):
+            llm_output += "\n```\n"
         return CallMetrics(
             input_tokens=response.usage.total_input_tokens,
             output_tokens=response.usage.total_output_tokens,
             request_time_ms=elapsed_time_ms,
             api_url=config["url"],
             model_name=response.model,
-            llm_output=f"{llm_output}\n```\n",
+            llm_output=llm_output,
             retries=0,
             prompt=prompt
         )
@@ -179,13 +183,15 @@ class LLMCaller:
         llm_output = response.choices[0].message.content
         if llm_output is None or llm_output == 'None':
             raise Exception("llm_output is None")
+        if not llm_output.endswith("```"):
+            llm_output += "\n```\n"
         return CallMetrics(
             input_tokens=response.usage.prompt_tokens,
             output_tokens=response.usage.completion_tokens,
             request_time_ms=response.usage.total_time * 1000,
             api_url=config["url"],
             model_name=response.model,
-            llm_output=f"{llm_output}\n```\n",
+            llm_output=llm_output,
             retries=0,
             prompt=prompt
         )
@@ -220,13 +226,15 @@ class LLMCaller:
         llm_output = response.choices[0].message.content
         if llm_output is None or llm_output == 'None':
             raise Exception("llm_output is None")
+        if not llm_output.endswith("```"):
+            llm_output += "\n```\n"
         return CallMetrics(
             input_tokens=response.usage.prompt_tokens,
             output_tokens=response.usage.completion_tokens,
             request_time_ms=response.time_info.total_time * 1000,
             api_url=config["url"],
             model_name=response.model,
-            llm_output=f"{llm_output}\n```\n",
+            llm_output=llm_output,
             retries=0,
             prompt=prompt
         )

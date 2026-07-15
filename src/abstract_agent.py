@@ -49,9 +49,6 @@ class AbstractAgent:
         self.max_iterations = max_iterations
         self.max_retries = 3
 
-    def rotate_providers(self):
-        return False
-
     async def get_sandbox_manual(self):
         await self.get_mcp_manual()
         authorized_imports = self.config.authorized_imports

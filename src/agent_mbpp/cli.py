@@ -29,6 +29,7 @@ class MBPPCli:
             model_name: Name of the model to use (e.g., "openai/gpt-4")
             provider_url: API endpoint URL (e.g., "https://openrter.ai/api/v1")
         """
+        agent = None
         try:
             with open(task_file, 'r') as f:
                 task_data = json.load(f)
@@ -51,6 +52,8 @@ class MBPPCli:
             with open(output, 'w') as f:
                 f.write(solution.model_dump_json(indent=2))
         except Exception as e:
+            if agent is not None:
+                agent.stop_container()
             print(f"CLI: {type(e).__name__}: {str(e)}")
             sys.exit(1)
         print(f"Solution saved to {output}")

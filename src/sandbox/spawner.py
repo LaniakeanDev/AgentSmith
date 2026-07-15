@@ -102,6 +102,9 @@ class Spawner:
             )
             try:
                 output_data = json.loads(result.stdout)
+                # print(f"output_data:\n{str(output_data)}")
+                # import sys
+                # sys.exit(0)
                 if output_data["success"] and "final_answer" in output_data:
                     return ExecutionResult(
                         success=True,

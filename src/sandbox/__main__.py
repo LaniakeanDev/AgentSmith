@@ -24,6 +24,7 @@ class Sandbox:
             inputs = json.loads(input_data)
             self.config = SandboxConfig.model_validate(inputs["config"])
             task_type = inputs["task_type"]
+            self.task_type = task_type
             if self.config.mcp_command is None:
                 if task_type == 'mbpp':
                     self.config.mcp_command = DEFAULT_MCP_CMD_MBPP
@@ -93,7 +94,8 @@ class Sandbox:
                 config=self.config,
                 restricted_globals=self.restricted_globals)
             if result.output:
-                self.output += f"\nExecution ouput:\n{result.output}"
+                # self.output += f"\nExecution ouput:\n{result.output}"
+                self.output += f"{result.output}"
             if result.success and result.final_answer:
                 print(json.dumps({
                     "success": True,

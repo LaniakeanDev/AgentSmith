@@ -1,3 +1,4 @@
+import json
 import re
 import subprocess
 import sys
@@ -34,6 +35,7 @@ class MBPPAgent(AbstractAgent):
         self.prompt_ext = ""
         self.image_name = "sandbox-image"
         self.container_name = f"{self.image_name}_container"
+        self.stop_container()
         self.iteration = 0
         if mcp_command is None:
             self.mcp_command = "uv run python sandbox/mbpp_server.py"
@@ -45,8 +47,9 @@ class MBPPAgent(AbstractAgent):
             mcp_command=self.mcp_command
         )
         self.all_tests_passed = False
+        self.solution = ""
         self.caller = LLMCaller(
-            provider="cerebras",
+            provider="groq",
             max_retries_per_key=3
             )
         # split_provider_model = provider_model.split('/')
@@ -132,20 +135,20 @@ class MBPPAgent(AbstractAgent):
             # Create/start container here if needed
 
     def start_container(self):
-        if not self.container_exists() or not self.container_is_running():
-            docker_cmd = [
-                "docker", "run", "-d",  # detached, long-lived
-                "--name", self.container_name,
-                "--network=none", "--cap-drop=ALL",
-                "--security-opt=no-new-privileges",
-                "--pids-limit=64",
-                f"--memory={self.config.max_memory_mb}m", "--cpus=1",
-                self.image_name,
-                "sleep", "infinity"
-            ]
-            subprocess.run(docker_cmd, check=True)
-        else:
-            print(f"Using pre-built container: {self.image_name}")
+        # if not self.container_exists() or not self.container_is_running():
+        docker_cmd = [
+            "docker", "run", "-d",  # detached, long-lived
+            "--name", self.container_name,
+            "--network=none", "--cap-drop=ALL",
+            "--security-opt=no-new-privileges",
+            "--pids-limit=64",
+            f"--memory={self.config.max_memory_mb}m", "--cpus=1",
+            self.image_name,
+            "sleep", "infinity"
+        ]
+        subprocess.run(docker_cmd, check=True)
+        # else:
+        #     print(f"Using pre-built container: {self.image_name}")
 
     def stop_container(self) -> None:
         print("Stopping container...")
@@ -175,7 +178,7 @@ class MBPPAgent(AbstractAgent):
 
     def get_prompt(self):
         prompt = f"# MCP manual\n{self.mcp_manual}\n"
-        prompt += "### final_solution(function_definition: str)\n"
+        prompt += "### final_answer(function_definition: str)\n"
         prompt += "Submits the function's python code as a string\n"
         prompt += "Once print(run_tests()) indicates success, "
         prompt += "call final_answer('function_definition') "
@@ -193,12 +196,12 @@ class MBPPAgent(AbstractAgent):
             iteration_count: int, message: str):
         new_prompt = f"{prompt}\n\nIteration {iteration_count}:\ncode: {code}"
         new_prompt += '\n' + message + '\n'
-        new_prompt += f"execution output: {exec_output}\n"
+        # new_prompt += f"execution output: {exec_output}\n"
         new_prompt += "Make the next iteration"
         return new_prompt
 
     def add_tests(self, code: str) -> str:
-        if 'run_tests()' not in code:
+        if not self.all_tests_passed and 'run_tests()' not in code:
             return f"{code}\nrun_tests()"
         return code
 
@@ -257,17 +260,25 @@ class MBPPAgent(AbstractAgent):
                 iteration_count=self.iteration
             )
             step_metrics_list.append(step_metrics)
-            print(f"result:\n{str(result)}")
-            sys.exit(0)
+            print(f"\nresult:\n{str(result)}\n\n")
+            # sys.exit(0)
             while result.final_answer is None and \
                     self.iteration < self.max_iterations:
                 exec_output = result.output
-                if result.success:
-                    message = "\nExecution completed but some tests failed:"
-                    message += f"\n{exec_output}"
+                if not self.all_tests_passed:
+                    output_data = json.loads(exec_output)
+                    if result.success and output_data['success']:
+                        message = "Ran run_tests() and got the results:\n"
+                        message += str(output_data)
+                        message += "\nIt's time to call final_answer()\n"
+                        self.all_tests_passed = True
+                    else:
+                        message = f"\nExecution could not complete:\n{result.error}"
+                # print(message)
+                # sys.exit(0)
                 else:
-                    message = f"\nExecution could not complete:\n{result.error}"
-                print(message)
+                    message = "All tests have passed."
+                    message += "\nIt's time to call final_answer()\n"
                 print("making new prompt...")
                 prompt = self.get_new_prompt(
                     prompt=prompt,
@@ -276,6 +287,8 @@ class MBPPAgent(AbstractAgent):
                     iteration_count=self.iteration,
                     message=message
                     )
+                # print(prompt)
+                # sys.exit(0)
                 print("new prompt made")
                 self.iteration += 1
                 print(f"\nIteration {self.iteration}")
@@ -308,7 +321,9 @@ class MBPPAgent(AbstractAgent):
                         error="No extracted code"
                     )
                 code = self.add_tests(extracted_code)
+                print(f"\ncode:\n{code}\n")
                 result = self.sandbox_exec(code)
+                print(f"\nresult:\n{str(result)}\n\n")
                 step_metrics = self.get_step_metrics(
                     code=code,
                     result=result,
