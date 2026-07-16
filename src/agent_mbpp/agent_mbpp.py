@@ -35,7 +35,7 @@ class MBPPAgent(AbstractAgent):
         self.prompt_ext = ""
         self.image_name = "sandbox-image"
         self.container_name = f"{self.image_name}_container"
-        self.stop_container()
+        self.remove_image()
         self.iteration = 0
         if mcp_command is None:
             self.mcp_command = "uv run python sandbox/mbpp_server.py"
@@ -150,11 +150,11 @@ class MBPPAgent(AbstractAgent):
         # else:
         #     print(f"Using pre-built container: {self.image_name}")
 
-    def stop_container(self) -> None:
-        print("Stopping container...")
-        if self.container_name:
-            subprocess.run(["docker", "rm", "-f", self.container_name],
-                           capture_output=True, text=True)
+    def remove_image(self) -> None:
+        # print("Stopping container...")
+        # if self.container_name:
+        #     subprocess.run(["docker", "rm", "-f", self.container_name],
+        #                    capture_output=True, text=True)
         print("Removing image...")
         if self.image_name:
             subprocess.run(["docker", "rmi", "-f", self.image_name],
@@ -375,7 +375,7 @@ class MBPPAgent(AbstractAgent):
         except Exception as e:
             print(f"Agent: {type(e).__name__}: {str(e)}")
         finally:
-            self.stop_container()
+            self.remove_image()
 
     def get_step_metrics(
             self,

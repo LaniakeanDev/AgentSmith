@@ -3,6 +3,26 @@
 or have a Makefile rule for it?
 
 
+# General
+
+- Your project must follow clean software architecture principles.
+- All errors must be handled gracefully
+- Your code must be readable, structured, and documented.
+
+
+# Agentic Framework
+
+- Implement a Thought → Code → Observation loop
+- Your sandbox must provide explicit feedback to the LLM in all of these situ-
+ations:
+    - No valid code block was found in the model’s response
+    - A code block was malformed but was interpreted anyway (explain how)
+    - Execution hit the timeout and output is partial
+    - Tool output was truncated due to size limits
+    - An edit introduced a syntax error or lint violation
+
+
+
 # MBPP
 
 ## Sandbox

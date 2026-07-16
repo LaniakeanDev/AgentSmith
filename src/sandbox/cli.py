@@ -6,6 +6,7 @@ import sys
 from .spawner import Spawner
 import subprocess
 
+
 class SandboxCLI:
     """Command-line interface for the sandbox tool"""
 

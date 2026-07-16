@@ -53,7 +53,7 @@ class MBPPCli:
                 f.write(solution.model_dump_json(indent=2))
         except Exception as e:
             if agent is not None:
-                agent.stop_container()
+                agent.remove_image()
             print(f"CLI: {type(e).__name__}: {str(e)}")
             sys.exit(1)
         print(f"Solution saved to {output}")
