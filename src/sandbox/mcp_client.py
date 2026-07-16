@@ -47,9 +47,9 @@ class MCPClient:
             os.path.join(PROJECT_ROOT, a) if not os.path.isabs(a) and a.endswith(".py") else a
             for a in args
         ]
-        # print(f"PROJECT_ROOT: {PROJECT_ROOT}")
-        # print(f"Resolved args: {args}")
-        # print(f"Full command: {command} {' '.join(args)}")
+        print(f"PROJECT_ROOT: {PROJECT_ROOT}")
+        print(f"Resolved args: {args}")
+        print(f"Full command: {command} {' '.join(args)}")
         if self.eval_script is not None:
             server_params = StdioServerParameters(
                 command=command,

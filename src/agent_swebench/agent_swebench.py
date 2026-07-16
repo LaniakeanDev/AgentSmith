@@ -3,7 +3,7 @@ import sys
 import time
 from typing import List
 from abstract_agent import AbstractAgent
-from sandbox.constants import DEFAULT_SERVER_NAME_SWEB
+from sandbox.constants import DEFAULT_MCP_CMD_SWEB
 from sandbox.spawner import Spawner
 from models import CallMetrics
 from sandbox.sandbox_models import ExecutionResult, SandboxConfig
@@ -40,7 +40,7 @@ class SWEBenchAgent(AbstractAgent):
         self.container_name: str | None = None
         self.iteration = 0
         if mcp_command is None:
-            self.mcp_command = DEFAULT_SERVER_NAME_SWEB
+            self.mcp_command = DEFAULT_MCP_CMD_SWEB
         else:
             self.mcp_command = mcp_command
         self.spawner = Spawner(

@@ -680,8 +680,8 @@ def get_patch() -> str:
             if branch_result.returncode == 0 else "unknown"
         header = f"Repository: {repo_name}\n"
         header += f"Branch: {branch}\n"
-        header += f"Date: {subprocess.run(
-            ['date'], capture_output=True, text=True).stdout.strip()}\n"
+        header += f"Date: "
+        header+= f"{subprocess.run(['date'], capture_output=True, text=True).stdout.strip()}\n"
         header += "=" * 80 + "\n"
         return header + diff_output
     except FileNotFoundError as e:
