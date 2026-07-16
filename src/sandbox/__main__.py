@@ -43,7 +43,7 @@ class Sandbox:
                 self.test_list = None
             self.mcp_client = MCPClient(
                 task_type=task_type,
-                mcp_cmd=self.config.mcp_command,
+                config=self.config,
                 eval_script=self.eval_script,
                 test_list=self.test_list,
                 mbpp_code=self.code

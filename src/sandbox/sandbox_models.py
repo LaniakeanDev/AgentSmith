@@ -26,6 +26,7 @@ class SandboxConfig(BaseModel):
     transport: str = "stdio"
     mcp_command: str | None = None
     server_path: str | None = None
+    mcp_url: str | None = None
 
 
 class ExecutionResult(BaseModel):
