@@ -1,9 +1,9 @@
 
 DEFAULT_SERVER_PATH = 'src/fastmcp_server.py'
 
-DEFAULT_SERVER_NAME_MBPP = 'sandbox_mbpp/mbpp_server.py'
+DEFAULT_SERVER_NAME_MBPP = 'sandbox_mbpp/mcp_tools_mbpp.py'
 
-DEFAULT_SERVER_NAME_SWEB = 'sandbox/swebench_server.py'
+DEFAULT_SERVER_NAME_SWEB = 'sandbox/mcp_tools_swebench.py'
 
 DEFAULT_MCP_CMD_MBPP = "uv run python " + DEFAULT_SERVER_NAME_MBPP
 

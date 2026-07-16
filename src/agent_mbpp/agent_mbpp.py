@@ -1,19 +1,16 @@
 import json
-import re
 import subprocess
 import sys
 from typing import List
 from agent_mbpp.mbpp_models import (
     MBPPTaskInput, SolutionOutput, StepMetrics)
+from sandbox.constants import DEFAULT_SERVER_NAME_MBPP
 from src.abstract_agent import AbstractAgent
 from src.llm_caller import LLMCaller
 from ..models import CallMetrics
 import time
-# from dotenv import load_dotenv
 from sandbox.sandbox_models import ExecutionResult, SandboxConfig
 from sandbox.spawner import Spawner
-
-# load_dotenv()
 
 
 class MBPPAgent(AbstractAgent):
@@ -26,7 +23,8 @@ class MBPPAgent(AbstractAgent):
             config: SandboxConfig,
             task: MBPPTaskInput,
             mcp_command: str | None = None) -> None:
-        super().__init__(task_type, provider_model, provider_url, max_iterations)
+        super().__init__(
+            task_type, provider_model, provider_url, max_iterations)
         self.task = task
         self.mcp_manual: str | None = None
         self.authorized_imports = ""
@@ -38,7 +36,7 @@ class MBPPAgent(AbstractAgent):
         self.remove_image()
         self.iteration = 0
         if mcp_command is None:
-            self.mcp_command = "uv run python sandbox/mbpp_server.py"
+            self.mcp_command = DEFAULT_SERVER_NAME_MBPP
         else:
             self.mcp_command = mcp_command
         self.spawner = Spawner(
@@ -52,17 +50,6 @@ class MBPPAgent(AbstractAgent):
             provider="groq",
             max_retries_per_key=3
             )
-        # split_provider_model = provider_model.split('/')
-        # if len(split_provider_model) != 2 or split_provider_model[0] \
-        #         not in PROVIDERS:
-        #     print(f"WARNING: Provider/model invalid: {provider_model}")
-        #     print("Switching to Groq/llama-3.3-70b-versatile instead")
-        #     self.provider, self.model_name = "groq", "llama-3.3-70b-versatile"
-        # else:
-        #     self.provider = split_provider_model[0].lower()
-        #     self.model_name = split_provider_model[1]
-        # self.provider_url = provider_url
-        # self.max_iterations = max_iterations
 
     def sanitize_code(self, code: str) -> str:
         """Replace problematic Unicode characters with ASCII equivalents."""

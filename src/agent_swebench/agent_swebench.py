@@ -1,12 +1,11 @@
 import subprocess
 import sys
-import re
 import time
 from typing import List
 from abstract_agent import AbstractAgent
+from sandbox.constants import DEFAULT_SERVER_NAME_SWEB
 from sandbox.spawner import Spawner
 from models import CallMetrics
-from sandbox.mcp_client import MCPClient
 from sandbox.sandbox_models import ExecutionResult, SandboxConfig
 from .swebench_models import StepMetrics, SWEBenchTaskInput, SolutionOutput
 from llm_caller import LLMCaller
@@ -29,7 +28,8 @@ class SWEBenchAgent(AbstractAgent):
             config: SandboxConfig,
             task: SWEBenchTaskInput,
             mcp_command: str | None = None):
-        super().__init__(task_type, provider_model, provider_url, max_iterations)
+        super().__init__(
+            task_type, provider_model, provider_url, max_iterations)
         self.task = task
         self.mcp_manual: str | None = None
         self.authorized_imports = ""
@@ -40,7 +40,7 @@ class SWEBenchAgent(AbstractAgent):
         self.container_name: str | None = None
         self.iteration = 0
         if mcp_command is None:
-            self.mcp_command = "uv run python sandbox/swebench_server.py"
+            self.mcp_command = DEFAULT_SERVER_NAME_SWEB
         else:
             self.mcp_command = mcp_command
         self.spawner = Spawner(

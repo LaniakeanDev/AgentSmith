@@ -1,4 +1,9 @@
 
+SANDBOX_TEMPLATE ?= 
+
+sandbox:
+	uv run sandbox $(SANDBOX_TEMPLATE)
+
 
 run-mbpp:
 	uv run python -m agent_mbpp --task-file cache/mbpp_task.json \

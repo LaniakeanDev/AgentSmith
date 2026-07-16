@@ -1,6 +1,4 @@
 
-- clean images when done?
-or have a Makefile rule for it?
 
 
 # General
@@ -9,12 +7,15 @@ or have a Makefile rule for it?
 - All errors must be handled gracefully
 - Your code must be readable, structured, and documented.
 
+## Makefile
+
+- clean or fclean removes containers
+
 
 # Agentic Framework
 
 - Implement a Thought → Code → Observation loop
-- Your sandbox must provide explicit feedback to the LLM in all of these situ-
-ations:
+- Your sandbox must provide explicit feedback to the LLM in all of these situations:
     - No valid code block was found in the model’s response
     - A code block was malformed but was interpreted anyway (explain how)
     - Execution hit the timeout and output is partial
@@ -23,48 +24,49 @@ ations:
 
 
 
+# Sandbox
+
+## CLI usage
+- With MBPP tools (stdio)
+uv run sandbox --mcp-stdio "python mcp_tools_mbpp.py" sandbox_template.json
+
+- With MBPP tools (HTTP)
+uv run sandbox --mcp-server <URL>
+
+- With SWE-bench tools
+uv run sandbox --mcp-stdio "python mcp_tools_swebench.py" sandbox_template.json
+
+- The interactive sandbox (uv run sandbox with no task argument) is a REPL-style command-line mode. It must open a prompt, read user-typed code in a loop, and execute each entry inside the sandbox namespace, subject to the same import, filesystem, timeout and memory restrictions defined in Section 4.2, with the connected MCP tool wrappers and final_answer available. After each entry it prints the result or any raised error and returns to the prompt. It exits cleanly on the exit command or on EOF (Ctrl+D).
+
+## Misc
+- Exception propagation:
+Your sandbox must correctly propagate exceptions that control program flow. In particular, KeyboardInterrupt and SystemExit must not be silently caught — they need to reach the agent loop for proper shutdown.
+
+- Filesystem restrictions: file access by the sandboxed code is limited to an allowlist of directories (the allowed_directories field of SandboxConfig). 
+
+- Execution timeout: Terminate code exceeding the configured timeout 
+
+- Memory limits: Terminate code exceeding allowed RAM usage
+
+- The MCP tool files (mcp_tools_mbpp.py, mcp_tools_swebench.py) should be located at the root of your repository
+
+- Both stdio or streamable HTTP transports must be supported for MCP server connections
+
+
 # MBPP
 
-## Sandbox
+All good!
 
-?Remove the Docker and use a simple subprocess
 
-Retry logic, provider shift logic
+# SWEBench
 
-### sandbox CLI usage
-```bash
-# With MBPP tools (HTTP)
-uv run sandbox --mcp-server <URL>
+Generate and submit valid patches using 
+```
+’git -c core.fileMode=false diff’
 ```
 
-### sandbox manual
-
-Generate a sandbox manual to be fed to the LLM prompt, which must include the MCP
-tools doc, or how to access it.
-
-The sandbox manual should be dynamically generated from the connected
-MCP server’s tool schemas — tool names, descriptions, and parameter types.
-When a different MCP server is connected, the manual should automatically
-reflect that server’s tools.
-The manual is what the LLM reads to understand what tools are available
-and how to call them.
+Agent system descriptions — how do the top-performing systems design their agent loop, tools, and prompts?
 
 
 
-## MBPP
 
-### agent CLI interface
-```bash
-# 1. Dump a task
-cd moulinette
-uv run moulinette_eval dump mbpp --output ../cache/mbpp_task.json
-# 2. Run your agent
-cd ../student
-uv run python -m agent_mbpp --task-file ../cache/mbpp_task.json \
---output ../cache/mbpp_solution.json \
---model-name "model/name" --provider-url "https://provider.api/v1"
-# 3. Validate solution
-cd ../moulinette
-uv run moulinette_eval validate mbpp ../cache/mbpp_task.json \
-../cache/mbpp_solution.json
-```
