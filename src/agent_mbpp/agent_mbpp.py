@@ -4,7 +4,7 @@ import sys
 from typing import List
 from agent_mbpp.mbpp_models import (
     MBPPTaskInput, SolutionOutput, StepMetrics)
-from sandbox.constants import DEFAULT_SERVER_NAME_MBPP
+from sandbox.constants import DEFAULT_MCP_CMD_MBPP
 from src.abstract_agent import AbstractAgent
 from src.llm_caller import LLMCaller
 from ..models import CallMetrics
@@ -36,7 +36,7 @@ class MBPPAgent(AbstractAgent):
         self.remove_image()
         self.iteration = 0
         if mcp_command is None:
-            self.mcp_command = DEFAULT_SERVER_NAME_MBPP
+            self.mcp_command = DEFAULT_MCP_CMD_MBPP
         else:
             self.mcp_command = mcp_command
         self.spawner = Spawner(

@@ -20,6 +20,10 @@ class SandboxCLI:
             print("You did not enter any code for the sandbox")
             sys.exit(0)
         config = get_config(config_path)
+        split_cmd = mcp_command.split(' ')
+        if len(split_cmd) > 1:
+            split_cmd[1] = f'sandbox/{split_cmd[1]}'
+            mcp_command = (' ').join(split_cmd)
         spawner = Spawner(
             config=config, server_path=None, mcp_command=mcp_command)
         # sandbox.configure()

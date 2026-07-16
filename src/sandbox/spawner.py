@@ -37,7 +37,6 @@ class Spawner:
                     filename = word.split('/').pop()
                     with open('src/sandbox/' + filename, 'w') as f:
                         f.write(content)
-                    # self.server_path = filename
                     self.config.server_path = filename
                     self.config.mcp_command = cmd
                 except Exception as e:
@@ -62,10 +61,7 @@ class Spawner:
     def spawn(
             self,
             code: str,
-            docker_cmd: List[str],
-            # task_type: str,
-            # task: SWEBenchTaskInput,
-            # container_name: str
+            docker_cmd: List[str]
               ) -> ExecutionResult:
         """Execute LLM-generated code in restricted environment"""
         if hasattr(self.task, 'test_list'):

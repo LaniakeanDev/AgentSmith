@@ -47,6 +47,9 @@ class MCPClient:
             os.path.join(PROJECT_ROOT, a) if not os.path.isabs(a) and a.endswith(".py") else a
             for a in args
         ]
+        # print(f"PROJECT_ROOT: {PROJECT_ROOT}")
+        # print(f"Resolved args: {args}")
+        # print(f"Full command: {command} {' '.join(args)}")
         if self.eval_script is not None:
             server_params = StdioServerParameters(
                 command=command,
@@ -67,17 +70,6 @@ class MCPClient:
                 command=command,
                 args=args,
             )
-        # env = os.environ.copy()
-        # if self.eval_script is not None:
-        #     env["eval_script"] = self.eval_script
-        # if self.test_list is not None:
-        #     env["test_list"] = str(self.test_list)
-        #     env["mbpp_code"] = self.mbpp_code
-        # server_params = StdioServerParameters(
-        #     command=command,
-        #     args=args,
-        #     env=env
-        # )
         try:
             # Start the server and connect to it
             stdio_transport = await self.exit_stack.enter_async_context(
@@ -237,8 +229,8 @@ class MCPClient:
                     required = param_name in tool.inputSchema.get("required", [])
                     lines.append(
                         f"  - {param_name} ({param_info.get('type', 'any')})"
-                        f"{'*' if required else ''}: {param_info.get(
-                            'description', '')}")
+                        f"{'*' if required else ''}: "
+                        f"{param_info.get('description', '')}")
             lines.append("")
         manual = "\n".join(lines)
         self.sandbox_manual = manual
