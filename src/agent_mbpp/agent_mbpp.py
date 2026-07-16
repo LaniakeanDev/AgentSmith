@@ -24,11 +24,10 @@ class MBPPAgent(AbstractAgent):
             task: MBPPTaskInput,
             mcp_command: str | None = None) -> None:
         super().__init__(
-            task_type, provider_model, provider_url, max_iterations)
+            task_type, provider_model, provider_url, max_iterations, config)
         self.task = task
         self.mcp_manual: str | None = None
         self.authorized_imports = ""
-        self.config = config
         self.og_prompt = ""
         self.prompt_ext = ""
         self.image_name = "sandbox-image"

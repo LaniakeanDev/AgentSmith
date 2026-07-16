@@ -26,11 +26,6 @@
 
 # Sandbox
 
-## CLI usage
-
-- With MBPP tools (HTTP)
-uv run sandbox --mcp-server <URL>
-
 
 ## Misc
 - Exception propagation:

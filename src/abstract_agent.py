@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 from sandbox.mcp_client import MCPClient
 import re
 from constants import PROVIDERS_KEY_CONST_MAP
+from sandbox.sandbox_models import SandboxConfig
 
 load_dotenv()
 
@@ -29,8 +30,10 @@ class AbstractAgent:
             task_type: str,
             provider_model: str,
             provider_url: str,
-            max_iterations: int
+            max_iterations: int,
+            config: SandboxConfig,
             ) -> None:
+        self.config = config
         self.task_type = task_type
         self.provider_url = provider_url
         split_provider_model = provider_model.split('/')
@@ -59,7 +62,7 @@ class AbstractAgent:
     async def get_mcp_manual(self):
         client = MCPClient(
             task_type=self.task_type,
-            mcp_cmd=self.mcp_command
+            config=self.config
         )
         try:
             await client.connect_server()
