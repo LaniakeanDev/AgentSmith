@@ -27,14 +27,9 @@
 # Sandbox
 
 ## CLI usage
-- With MBPP tools (stdio)
-uv run sandbox --mcp-stdio "python mcp_tools_mbpp.py" sandbox_template.json
 
 - With MBPP tools (HTTP)
 uv run sandbox --mcp-server <URL>
-
-- With SWE-bench tools
-uv run sandbox --mcp-stdio "python mcp_tools_swebench.py" sandbox_template.json
 
 - The interactive sandbox (uv run sandbox with no task argument) is a REPL-style command-line mode. It must open a prompt, read user-typed code in a loop, and execute each entry inside the sandbox namespace, subject to the same import, filesystem, timeout and memory restrictions defined in Section 4.2, with the connected MCP tool wrappers and final_answer available. After each entry it prints the result or any raised error and returns to the prompt. It exits cleanly on the exit command or on EOF (Ctrl+D).
 
