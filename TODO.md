@@ -39,10 +39,7 @@ All good!
 
 # SWEBench
 
-Generate and submit valid patches using 
-```
-’git -c core.fileMode=false diff’
-```
+All Good!?
 
 Agent system descriptions — how do the top-performing systems design their agent loop, tools, and prompts?
 

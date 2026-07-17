@@ -30,3 +30,5 @@ PROVIDERS_KEY_CONST_MAP = {
         "num_keys": 3
     },
 }
+
+DEFAULT_PROVIDER_MODEL = 'groq/llama-3.3-70b-versatile'

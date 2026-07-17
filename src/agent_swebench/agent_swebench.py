@@ -49,7 +49,7 @@ class SWEBenchAgent(AbstractAgent):
         )
         self.all_tests_passed = False
         self.caller = LLMCaller(
-            provider="groq",
+            provider=self.provider,
             max_retries_per_key=3
             )
 

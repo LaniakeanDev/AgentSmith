@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 # from google import genai
 from sandbox.mcp_client import MCPClient
 import re
-from constants import PROVIDERS_KEY_CONST_MAP
+from constants import DEFAULT_PROVIDER_MODEL, PROVIDERS_KEY_CONST_MAP
 from sandbox.sandbox_models import SandboxConfig
 
 load_dotenv()
@@ -40,7 +40,7 @@ class AbstractAgent:
         if len(split_provider_model) != 2 or split_provider_model[0] \
                 not in PROVIDERS_KEY_CONST_MAP:
             print(f"WARNING: Provider/model invalid: {provider_model}")
-            self.provider = "groq"
+            self.provider = DEFAULT_PROVIDER_MODEL.split('/')[0]
             print(f"Switching to {self.provider} instead")
             self.model_name = PROVIDERS_KEY_CONST_MAP[self.provider]["model"]
             self.provider_url = PROVIDERS_KEY_CONST_MAP[self.provider]["url"]
