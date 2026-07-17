@@ -431,5 +431,5 @@ VERY IMPORTANT: Most of the time the fix is just explained here. Read carefully 
             retries=call_metrics.retries,
             sandbox_input=code,
             sandbox_output=sandbox_output,
-            prompt=call_metrics.prompt
+            # prompt=call_metrics.prompt
         )

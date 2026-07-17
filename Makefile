@@ -1,4 +1,9 @@
 
+socket:
+	systemctl --user start podman.socket && \
+	podman system service --time=0
+
+
 SANDBOX_TEMPLATE ?= 
 
 sandbox:
