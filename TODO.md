@@ -28,8 +28,6 @@
 
 
 ## Misc
-- Exception propagation:
-Your sandbox must correctly propagate exceptions that control program flow. In particular, KeyboardInterrupt and SystemExit must not be silently caught — they need to reach the agent loop for proper shutdown.
 
 - Filesystem restrictions: file access by the sandboxed code is limited to an allowlist of directories (the allowed_directories field of SandboxConfig). 
 

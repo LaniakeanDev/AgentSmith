@@ -52,7 +52,6 @@ class TestResultParser:
             re.search(r'exceptions?\s*=', tail, re.IGNORECASE))
         return n_passed > 0 and not has_fail_or_exc and exit_code == 0
 
-
     def parse_django_unittest(
             self, stdout: str, stderr: str, exit_code: int) -> bool | None:
         """django/django — uses its own unittest-based runner (runtests.py)."""
@@ -112,7 +111,11 @@ class TestResultParser:
 
 # Create an MCP server
 mcp = FastMCP("SWEBench", json_response=True)
-cwd = os.path.abspath(os.path.join(os.getcwd(), '..', 'testbed'))
+allowed_dirs = os.environ.get("allowed_directories", "").split(":")
+if '/testbed' in allowed_dirs:
+    cwd = os.path.abspath(os.path.join(os.getcwd(), '..', 'testbed'))
+else:
+    cwd = os.path.abspath(os.path.join(os.getcwd(), '..', allowed_dirs[0]))
 
 eval_script = os.environ.get('eval_script')
 

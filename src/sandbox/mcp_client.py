@@ -135,23 +135,18 @@ class MCPClient:
         """Connect to the MCP server using the appropriate connection type"""
         if self.connected:
             return None
-        
         self.exit_stack = AsyncExitStack()
-        
         try:
             if self.transport == 'http':
                 await self._connect_http()
             else:  # Default to stdio
                 await self._connect_stdio()
-            
             # Initialize the session
             await self.session.initialize()
-            
             # List available tools
             response = await self.session.list_tools()
             self.tools = response.tools
             self.connected = True
-            
         except Exception as e:
             await self.cleanup()
             raise Exception(
@@ -176,6 +171,7 @@ class MCPClient:
 
         # Prepare environment variables
         env = os.environ.copy()
+        env["allowed_directories"] = ":".join(self.config.allowed_directories)
         env["transport"] = 'stdio'
         if self.eval_script is not None:
             env["eval_script"] = self.eval_script
@@ -263,8 +259,8 @@ class MCPClient:
             else a
             for a in args
         ]
-
         env = os.environ.copy()
+        env["allowed_directories"] = ":".join(self.config.allowed_directories)
         env["transport"] = 'http'
         env["mcp_url"] = self.mcp_url
         if self.eval_script is not None:
