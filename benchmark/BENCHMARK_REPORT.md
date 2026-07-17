@@ -37,7 +37,7 @@
 
 | Model | Task | Status | Iterations | Input Tokens | Output Tokens | Wall Time (s) |
 |-------|------|--------|------------|--------------|---------------|---------------|
-| **llama-3.3-70b-versatile** | sympy__sympy-14711 | ✅ PASS | 3 | 12,450 | 4,200 | 45 |
+| **llama-3.3-70b-versatile** | sympy__sympy-14711 | ✅ PASS | 9 | 48086 | 479 | 184 |
 | | SWE-bench-2 | ✅ PASS | 5 | 18,900 | 6,800 | 78 |
 | | SWE-bench-3 | ❌ FAIL | 8 | 25,600 | 9,100 | 112 |
 | **Model B** | sympy__sympy-14711 | ✅ PASS | 4 | 15,200 | 5,100 | 52 |

@@ -75,7 +75,7 @@ class AbstractAgent:
         await client.cleanup()
 
     def extract_code(self, llm_output: str) -> tuple[str | None, str | None]:
-        pattern = r"```(?:python)?\r?\n(.*?)```"
+        pattern = r"```(?:python)?\s*\n(.*?)```"
         match = re.search(pattern, llm_output, re.DOTALL)
         if match:
             code = match.group(1)

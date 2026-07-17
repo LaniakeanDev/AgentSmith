@@ -4,9 +4,11 @@ import os
 import time
 import requests
 from constants import PROVIDERS_KEY_CONST_MAP
+from mistralai.client import Mistral
 
 
 # ==================== Custom Exceptions ====================
+
 
 class LLMError(Exception):
     """Base exception for LLM errors"""
@@ -78,7 +80,7 @@ class CallMetrics:
 # }
 
 # Default priority order for provider rotation
-DEFAULT_PROVIDER_PRIORITY = ["gemini", "cerebras", "groq", "qwen", "openrouter"]
+DEFAULT_PROVIDER_PRIORITY = ["gemini", "cerebras", "groq", "qwen", "openrouter", 'mistralai']
 
 
 # ==================== Main LLM Caller Class ====================
@@ -141,10 +143,10 @@ class LLMCaller:
         response = client.interactions.create(
             model=self.model_name,
             input=prompt,
-            extra_body={
-                "stopSequences": ["\n```\n"],
-                "maxOutputTokens": 256,
-            }
+            # generation_config={
+            #     "stop_sequences": ["\n```\n"],
+            #     "max_output_tokens": 256,
+            # }
         )
         elapsed_time_ms = (time.time() - start_time) * 1000
         llm_output = response.output_text
@@ -162,6 +164,46 @@ class LLMCaller:
             retries=0,
             prompt=prompt
         )
+
+    def _call_mistral_single(self, prompt: str, key_num: int) -> CallMetrics:
+        """Single Mistral AI API call with specific key"""
+        print("Calling Mistral...")
+        config = PROVIDERS_KEY_CONST_MAP["mistralai"]
+        api_key = self._get_api_key("mistralai", key_num)
+        if not api_key:
+            raise RateLimitError(f"No API key for mistralai_{key_num}")
+        start_time = time.time()
+        with Mistral(
+            api_key=api_key
+        ) as mistral:
+            response = mistral.chat.complete(
+                model="mistral-large-latest",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": prompt,
+                    },
+                ],
+                stream=False,
+                response_format={"type": "text"}
+            )
+        elapsed_time_ms = (time.time() - start_time) * 1000
+        print(response)
+        # llm_output = response.output_text
+        # if llm_output is None or llm_output == 'None':
+        #     raise Exception("llm_output is None")
+        # if not llm_output.endswith("```"):
+        #     llm_output += "\n```\n"
+        # return CallMetrics(
+        #     input_tokens=response.usage.total_input_tokens,
+        #     output_tokens=response.usage.total_output_tokens,
+        #     request_time_ms=elapsed_time_ms,
+        #     api_url=config["url"],
+        #     model_name=response.model,
+        #     llm_output=llm_output,
+        #     retries=0,
+        #     prompt=prompt
+        # )
 
     def _call_groq_single(self, prompt: str, key_num: int) -> CallMetrics:
         """Single Groq API call with specific key"""
@@ -208,7 +250,8 @@ class LLMCaller:
         response = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=self.model_name,
-            stop=["\n```\n"]
+            stop=["\n```\n"],
+            max_completion_tokens=256
         )
         # Handle None response (Cerebras-specific issue)
         none_retries = 0
@@ -430,3 +473,8 @@ class LLMCaller:
         raise AllProvidersFailedError(
             f"All {len(self.provider_priority)} providers failed:\n  - {error_summary}"
         )
+
+
+if __name__ == '__main__':
+    caller = LLMCaller(provider='mistralai')
+    caller.call_llm("Tell me the meaning of life in very short")
