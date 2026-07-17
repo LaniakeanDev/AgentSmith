@@ -158,9 +158,12 @@ class MBPPAgent(AbstractAgent):
                 code=extracted_code,
                 docker_cmd=exec_cmd,
             )
+        except KeyboardInterrupt:
+            print("\n\n👋 Interrupted. Exiting...")
+            sys.exit(0)
         except Exception as e:
-            print(f"Agent.sandbox_exec: {type(e).__name__}: {str(e)}")
-            raise
+            print(f"Agent: {type(e).__name__}: {str(e)}")
+            sys.exit(0)
 
     def get_prompt(self):
         prompt = f"# MCP manual\n{self.mcp_manual}\n"
