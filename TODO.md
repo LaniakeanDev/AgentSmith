@@ -29,15 +29,7 @@
 
 ## Misc
 
-- Filesystem restrictions: file access by the sandboxed code is limited to an allowlist of directories (the allowed_directories field of SandboxConfig). 
-
-- Execution timeout: Terminate code exceeding the configured timeout 
-
-- Memory limits: Terminate code exceeding allowed RAM usage
-
 - The MCP tool files (mcp_tools_mbpp.py, mcp_tools_swebench.py) should be located at the root of your repository
-
-- Both stdio or streamable HTTP transports must be supported for MCP server connections
 
 
 # MBPP
