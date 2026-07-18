@@ -5,6 +5,12 @@ PROVIDERS_KEY_CONST_MAP = {
         "model": 'llama-3.3-70b-versatile',
         "num_keys": 3
     },
+    # "qwen": {
+    #     "key_name": 'GROQ_API_KEY',
+    #     "url": 'https://api.groq.com/openai/v1/chat/completions',
+    #     "model": 'llama-3.3-70b-versatile',
+    #     "num_keys": 3
+    # },
     "openrouter": {
         "key_name": 'OPENROUTER_API_KEY',
         "url": 'https://openrouter.ai/api/v1/chat/completions',
@@ -34,10 +40,16 @@ PROVIDERS_KEY_CONST_MAP = {
 
 # DEFAULT_PROVIDER_MODEL = 'groq/llama-3.3-70b-versatile'
 
+DEFAULT_PROVIDER_MODEL = 'groq/compound'
+
 # DEFAULT_PROVIDER_MODEL = 'cerebras/gpt-oss-120b'
+
+# DEFAULT_PROVIDER_MODEL = 'cerebras/gemma-4-31b'
 
 # DEFAULT_PROVIDER_MODEL = 'cerebras/gemma-4-31b'
 
 # DEFAULT_PROVIDER_MODEL = 'mistralai/Qwen3-32B'
 
-DEFAULT_PROVIDER_MODEL = 'gemini/gemini-3.5-flash'
+# DEFAULT_PROVIDER_MODEL = 'gemini/gemini-3.5-flash'
+
+# DEFAULT_PROVIDER_MODEL = 'openrouter/free'

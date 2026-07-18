@@ -91,10 +91,12 @@ class LLMCaller:
     def __init__(
         self,
         provider: str = "groq",
+        model: str = "llama-3.3-70b-versatile",
         max_retries_per_key: int = 3,
         provider_priority: Optional[List[str]] = None
     ):
         self.provider = provider
+        self.model_name = model
         self.max_retries_per_key = max_retries_per_key
         self.provider_priority = provider_priority or DEFAULT_PROVIDER_PRIORITY
         self._initial_provider = provider
@@ -112,11 +114,11 @@ class LLMCaller:
         config = PROVIDERS_KEY_CONST_MAP[provider]
         base_key = config["key_name"]
         num_keys = config.get("num_keys", 1)
-        split_model = config["model"].split('/')
-        if len(split_model) > 1:
-            self.model_name = config["model"].split('/')[1]
-        else:
-            self.model_name = config["model"]
+        # split_model = config["model"].split('/')
+        # if len(split_model) > 1:
+        #     self.model_name = config["model"].split('/')[1]
+        # else:
+        #     self.model_name = config["model"]
         if key_num > num_keys:
             return None
         key_name = base_key if num_keys == 1 else f"{base_key}_{key_num}"
@@ -223,7 +225,7 @@ class LLMCaller:
 
     def _call_groq_single(self, prompt: str, key_num: int) -> CallMetrics:
         """Single Groq API call with specific key"""
-        print("Calling Groq...")
+        print(f"Calling Groq ({self.model_name})...")
         from groq import Groq
 
         api_key = self._get_api_key("groq", key_num)
@@ -256,9 +258,6 @@ class LLMCaller:
 
     def _call_cerebras_single(self, prompt: str, key_num: int) -> CallMetrics:
         """Single Cerebras API call with specific key"""
-        print(prompt)
-        import sys
-        sys.exit(0)
         from cerebras.cloud.sdk import Cerebras
         api_key = self._get_api_key("cerebras", key_num)
         if not api_key:
@@ -269,7 +268,6 @@ class LLMCaller:
         response = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
             model=self.model_name,
-            stop=["\n```\n"],
             max_completion_tokens=256
         )
         # Handle None response (Cerebras-specific issue)
@@ -282,8 +280,7 @@ class LLMCaller:
             response = client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model_name,
-                max_completion_tokens=512,
-                stream=False,
+                max_completion_tokens=256
             )
         llm_output = response.choices[0].message.content
         print(f"\n\nllm_output:\n{llm_output}\n\n")
@@ -306,7 +303,7 @@ class LLMCaller:
         self, prompt: str, provider: str, key_num: int, timeout: int = 30
     ) -> CallMetrics:
         """Generic OpenAI-compatible API call via requests"""
-        print(f"Calling {provider}...")
+        print(f"Calling {provider} ({self.model_name})...")
         config = PROVIDERS_KEY_CONST_MAP[provider]
         api_key = self._get_api_key(provider, key_num)
 

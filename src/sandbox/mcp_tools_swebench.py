@@ -40,35 +40,11 @@ class TestResultParser:
 
     def parse_pytest(self, stdout: str, exit_code: int) -> bool | None:
         """django (recent), requests, flask, scikit-learn, matplotlib, etc."""
-        # anchor to the actual summary line, ignore earlier noise
-        tail = stdout[-4000:]  # summary is always near the end
-        passed_m = re.search(r'\b([1-9]\d*) passed\b', tail)
-        failed_m = re.search(r'\b([1-9]\d*) failed\b', tail)
-        error_m = re.search(r'\b([1-9]\d*) error(s)?\b', tail)
-        no_tests = 'no tests ran' in tail or 'collected 0 items' in tail
-        if no_tests:
-            return False
-        if failed_m or error_m:
-            return False
-        return bool(passed_m) and exit_code == 0
-
-    def parse_sympy_bin_test(self, stdout: str, exit_code: int) -> bool | None:
-        """sympy/sympy — custom runner (bin/test), not pytest."""
-        # m = re.search(r'tests finished:\s*(\d+)\s*passed', stdout)
-        # if not m:
-        #     return False  # couldn't confirm anything ran
-        # n_passed = int(m.group(1))
-        # has_fail_or_exc = bool(
-        #     re.search(r'\bfailed\b', stdout, re.IGNORECASE) or
-        #     re.search(r'exceptions?\s*=', stdout, re.IGNORECASE))
-        # return n_passed > 0 and not has_fail_or_exc and exit_code == 0
         if exit_code != 0:
             return False
         low_stdout = stdout.lower()
-        if "passed" in low_stdout and "failed" not in low_stdout:
+        if "passed" in low_stdout and "fail" not in low_stdout:
             return True
-        elif "failed" in low_stdout or "error" in low_stdout:
-            return False
         return False
 
     def parse_django_unittest(
@@ -124,7 +100,11 @@ eval_script = os.environ.get('eval_script')
 
 
 @mcp.tool()
-def read_file(filepath: str, start_line: int, end_line: int) -> str:
+def read_file(
+            filepath: str,
+            start_line: int,
+            end_line: int | None = None
+        ) -> str:
     """
     Read the content of a file with line numbers (up to 50 lines from \
         start_line only).
@@ -138,16 +118,25 @@ def read_file(filepath: str, start_line: int, end_line: int) -> str:
     Returns:
         Formatted string with line numbers, or a message on error
     """
+    MAX_LINES = 50
+    if end_line is None:
+        end_line = start_line + MAX_LINES - 1
     # Validate parameters
     if start_line < 1 or end_line < start_line:
         return "Invalid line range: start_line must be >= 1 and end_line must be >= start_line"
-    MAX_LINES = 50
     truncated = False
     try:
         lines = []
         file_path = Path(cwd) / filepath
         with open(file_path, 'r') as f:
-            for i, line in enumerate(f, 1):
+            content = f.read()
+            content_lines = content.split('\n')
+            line_count = len(content_lines)
+            if start_line > line_count:
+                result = f"There are only {line_count} lines in this file, "
+                result += f"but start_line = {start_line} was provided"
+                return result
+            for i, line in enumerate(content_lines, 1):
                 if i > end_line:
                     break
                 if i >= start_line:
@@ -156,11 +145,12 @@ def read_file(filepath: str, start_line: int, end_line: int) -> str:
                         break
                     lines.append(f"{i}: {line.rstrip()}")
         result = '\n'.join(lines) if lines else None
-        if result and truncated:
+        if result is not None and truncated:
             last_line = start_line + MAX_LINES - 1
-            result += f"\n... (truncated at line {last_line}; call again with start_line={last_line + 1} to continue)"
-            return result
-        return result
+            result += f"\n... (truncated at line {last_line}; "\
+                "call again with start_line={last_line + 1} to continue)"
+        return result if result else \
+            f"No lines found in range {start_line}-{end_line}"
     except FileNotFoundError:
         return f"File not found: {filepath}"
     except PermissionError:

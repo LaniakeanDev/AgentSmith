@@ -50,8 +50,9 @@ class SWEBenchAgent(AbstractAgent):
         self.all_tests_passed = False
         self.caller = LLMCaller(
             provider=self.provider,
+            model=self.model_name,
             max_retries_per_key=3
-            )
+        )
 
     # async def get_sandbox_manual(self):
     #     await self.get_mcp_manual()
@@ -250,6 +251,9 @@ class SWEBenchAgent(AbstractAgent):
             self.step_metrics_list.append(step_metrics)
             while result.final_answer is None and \
                     self.iteration < self.max_iterations:
+                # import pprint
+                # pprint.pprint(result)
+                # print(f"\n\nAgent:253: {result.output}\n\n\n\n")
                 exec_output = remove_repeated_lines(result.output)
                 if result.success:
                     message = f"Execution completed:"\
@@ -356,6 +360,25 @@ class SWEBenchAgent(AbstractAgent):
                     total_time_seconds=task_duration,
                     steps=self.step_metrics_list,
                 )
+        except KeyboardInterrupt:
+            print("\n\n👋 Interrupted. Exiting...")
+            task_duration = time.time() - self.task_start
+            return SolutionOutput(
+                task_id=str(self.task.instance_id),
+                benchmark="swebench",
+                success=False,
+                solution="Solution seeking interrupted",
+                system_prompt=prompt,
+                iterations=self.iteration,
+                total_requests=sum(
+                    met.retries + 1 for met in self.step_metrics_list),
+                total_input_tokens=sum(
+                    met.input_tokens for met in self.step_metrics_list),
+                total_output_tokens=sum(
+                    met.output_tokens for met in self.step_metrics_list),
+                total_time_seconds=task_duration,
+                steps=self.step_metrics_list,
+            )
         finally:
             self.stop_container()
 
@@ -379,16 +402,17 @@ printed "all_tests_passed": True in this same session — never call it otherwis
 
 {self.mcp_manual}
 
-Format:
-Thought: [reasoning]
+## Output Format (strictly adhere to it)
+
+Thought: [reasoning for 128 tokens max]
 Code:
 ```python
 result = tool_name(arg1="val1")
 print(result)
 ```
 
-After verifying your solution (next iteration):
-final_answer(patch) must be called alone
+After verifying your solution:
+final_answer(get_patch()) must be called alone
 
 ## Task
 ### Problem Statement

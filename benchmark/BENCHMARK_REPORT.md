@@ -37,21 +37,21 @@
 
 | Model | Task | Status | Iterations | Input Tokens | Output Tokens | Wall Time (s) |
 |-------|------|--------|------------|--------------|---------------|---------------|
-| **llama-3.3-70b-versatile** | sympy__sympy-14711 | ✅ PASS | 9 | 48086 | 479 | 184 |
-| | SWE-bench-2 | ✅ PASS | 5 | 18,900 | 6,800 | 78 |
-| | SWE-bench-3 | ❌ FAIL | 8 | 25,600 | 9,100 | 112 |
-| **Model B** | sympy__sympy-14711 | ✅ PASS | 4 | 15,200 | 5,100 | 52 |
-| | SWE-bench-2 | ✅ PASS | 6 | 22,400 | 7,900 | 89 |
-| | SWE-bench-3 | ✅ PASS | 7 | 28,300 | 10,200 | 124 |
-| **Model C** | sympy__sympy-14711 | ✅ PASS | 2 | 9,800 | 3,400 | 38 |
-| | SWE-bench-2 | ✅ PASS | 4 | 14,500 | 5,200 | 62 |
-| | SWE-bench-3 | ✅ PASS | 6 | 20,100 | 7,800 | 95 |
-| **Model D** | sympy__sympy-14711 | ✅ PASS | 5 | 18,300 | 6,200 | 67 |
-| | SWE-bench-2 | ❌ FAIL | 9 | 26,700 | 9,800 | 134 |
-| | SWE-bench-3 | ❌ FAIL | 10 | 32,400 | 12,100 | 158 |
-| **Model E** | sympy__sympy-14711 | ✅ PASS | 6 | 20,100 | 7,400 | 71 |
-| | SWE-bench-2 | ✅ PASS | 8 | 28,600 | 10,500 | 115 |
-| | SWE-bench-3 | ❌ FAIL | 10+ | 35,800 | 13,200 | 189 |
+| **llama-3.3-70b-versatile** | sympy__sympy-14711 | ✅ PASS | 9 | 48,086 | 479 | 184 |
+| | SWE-bench-2 | ❌❌ FAIL | 5 | 18,900 | 6,800 | 78 |
+| | SWE-bench-3 | ❌❌ FAIL | 8 | 25,600 | 9,100 | 112 |
+| **openrouter/free** | sympy__sympy-14711 | ✅ PASS | 8 | 17,840 | 727 | 63 |
+| | SWE-bench-2 | ❌❌ FAIL | 6 | 22,400 | 7,900 | 89 |
+| | SWE-bench-3 | ❌❌ FAIL | 7 | 28,300 | 10,200 | 124 |
+| **Gemini** | sympy__sympy-14711 | ❌❌ FAIL | 2 | 9,800 | 3,400 | 38 |
+| | SWE-bench-2 | ❌❌ FAIL | 4 | 14,500 | 5,200 | 62 |
+| | SWE-bench-3 | ❌❌ FAIL | 6 | 20,100 | 7,800 | 95 |
+| **gemma-4-31b** | sympy__sympy-14711 | ✅ PASS | 8 | 31,520 | 827 | 79 |
+| | SWE-bench-2 | ❌❌ FAIL | 9 | 26,700 | 9,800 | 134 |
+| | SWE-bench-3 | ❌❌ FAIL | 10 | 32,400 | 12,100 | 158 |
+| **groq-compound** | sympy__sympy-14711 | ✅ PASS | 9 | 29,190 | 585 | 92 |
+| | SWE-bench-2 | ❌❌ FAIL | 8 | 28,600 | 10,500 | 115 |
+| | SWE-bench-3 | ❌❌ FAIL | 10+ | 35,800 | 13,200 | 189 |
 
 ### Summary Statistics
 

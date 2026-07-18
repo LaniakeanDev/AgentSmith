@@ -1,21 +1,6 @@
-# import re
-# import sys
-# from typing import List
-# from agent_mbpp.mbpp_models import (
-#     CallMetrics, MBPPTaskInput, SolutionOutput, StepMetrics)
-# import requests
-# import time
-# import os
 import sys
-
+import ast
 from dotenv import load_dotenv
-# from models import CallMetrics
-# from sandbox.sandbox_models import ExecutionResult, SandboxConfig
-# from sandbox.spawner import Spawner
-# from groq import Groq
-# from groq import Groq
-# from cerebras.cloud.sdk import Cerebras
-# from google import genai
 from sandbox.mcp_client import MCPClient
 import re
 from constants import DEFAULT_PROVIDER_MODEL, PROVIDERS_KEY_CONST_MAP
@@ -42,13 +27,13 @@ class AbstractAgent:
             print(f"WARNING: Provider/model invalid: {provider_model}")
             self.provider = DEFAULT_PROVIDER_MODEL.split('/')[0]
             print(f"Switching to {self.provider} instead")
-            self.model_name = PROVIDERS_KEY_CONST_MAP[self.provider]["model"]
+            self.model_name = DEFAULT_PROVIDER_MODEL.split('/')[1]
             self.provider_url = PROVIDERS_KEY_CONST_MAP[self.provider]["url"]
         else:
             self.provider = split_provider_model[0].lower()
             self.model_name = split_provider_model[1]
         self.key_name = PROVIDERS_KEY_CONST_MAP[self.provider]["key_name"]
-        self.provider_model = PROVIDERS_KEY_CONST_MAP[self.provider]["model"]
+        # self.provider_model = PROVIDERS_KEY_CONST_MAP[self.provider]["model"]
         self.max_iterations = max_iterations
         self.max_retries = 3
 
@@ -80,6 +65,8 @@ class AbstractAgent:
         if match:
             code = match.group(1)
             code = self.sanitize_code(code)
+            if code == "No code could be extracted":
+                return None, None
             truncated_output = llm_output[:match.end(1)]
             return code, truncated_output
         # <tool_call>fn(args)</tool_call>
@@ -118,6 +105,13 @@ class AbstractAgent:
             return tool_call, truncated_output
         return None, None
 
+    # def is_valid_python(self, code_string):
+    #     try:
+    #         ast.parse(code_string)
+    #         return True
+    #     except SyntaxError:
+    #         return False
+
     def sanitize_code(self, code: str) -> str:
         """Replace problematic Unicode characters with ASCII equivalents."""
         replacements = {
@@ -132,7 +126,24 @@ class AbstractAgent:
         }
         for unicode_char, ascii_char in replacements.items():
             code = code.replace(unicode_char, ascii_char)
-        return code
+        try:
+            ast.parse(code)
+            return code
+        except SyntaxError as e:
+            lines = code.split('\n')
+            if e.lineno:
+                valid_lines = lines[:e.lineno - 1]
+                if valid_lines:
+                    return '\n'.join(valid_lines)
+            while len(lines) > 0:
+                try:
+                    lines.pop()
+                    partial_code = '\n'.join(lines)
+                    ast.parse(partial_code)
+                    return partial_code
+                except SyntaxError:
+                    continue
+        return "No code could be extracted"
 
     def get_new_prompt(
             self,

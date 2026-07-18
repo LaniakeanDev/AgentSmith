@@ -46,7 +46,8 @@ class MBPPAgent(AbstractAgent):
         self.all_tests_passed = False
         self.solution = ""
         self.caller = LLMCaller(
-            provider="groq",
+            provider=self.provider,
+            model=self.model_name,
             max_retries_per_key=3
             )
 
