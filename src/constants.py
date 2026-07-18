@@ -36,6 +36,8 @@ PROVIDERS_KEY_CONST_MAP = {
 
 # DEFAULT_PROVIDER_MODEL = 'cerebras/gpt-oss-120b'
 
-DEFAULT_PROVIDER_MODEL = 'mistralai/Qwen3-32B'
+# DEFAULT_PROVIDER_MODEL = 'cerebras/gemma-4-31b'
 
-# DEFAULT_PROVIDER_MODEL = 'gemini/gemini-3.5-flash'
+# DEFAULT_PROVIDER_MODEL = 'mistralai/Qwen3-32B'
+
+DEFAULT_PROVIDER_MODEL = 'gemini/gemini-3.5-flash'

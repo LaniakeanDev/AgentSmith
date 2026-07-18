@@ -5,7 +5,9 @@ import time
 import requests
 from constants import PROVIDERS_KEY_CONST_MAP
 from mistralai.client import Mistral
+from dotenv import load_dotenv
 
+load_dotenv()
 
 # ==================== Custom Exceptions ====================
 
@@ -118,7 +120,12 @@ class LLMCaller:
         if key_num > num_keys:
             return None
         key_name = base_key if num_keys == 1 else f"{base_key}_{key_num}"
-        return os.environ.get(key_name)
+        # print(f"DEBUG key_name: {key_name}")
+        key_value = os.environ.get(key_name)
+        # print(f"DEBUG key_value: {key_value}")
+        # import sys
+        # sys.exit(0)
+        return key_value
 
     def _is_rate_limit_error(self, error: Exception) -> bool:
         """Check if an error indicates rate limiting"""
@@ -131,6 +138,7 @@ class LLMCaller:
         """Single Gemini API call with specific key"""
         print("Calling Gemini...")
         from google import genai
+        from google.genai import types
 
         api_key = self._get_api_key("gemini", key_num)
         if not api_key:
@@ -140,26 +148,34 @@ class LLMCaller:
         client = genai.Client(api_key=api_key)
 
         start_time = time.time()
-        response = client.interactions.create(
+        config = {
+            # 'max_output_tokens': 256,
+            'max_output_tokens': 3,
+            'stop_sequences': ["\n```\n"]
+        }
+        response = client.models.generate_content(
             model=self.model_name,
-            input=prompt,
-            # generation_config={
-            #     "stop_sequences": ["\n```\n"],
-            #     "max_output_tokens": 256,
-            # }
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                max_output_tokens=256,
+                stop_sequences=["\n```\n"]
+            ),
         )
         elapsed_time_ms = (time.time() - start_time) * 1000
-        llm_output = response.output_text
+        llm_output = response.text
         if llm_output is None or llm_output == 'None':
             raise Exception("llm_output is None")
         if not llm_output.endswith("```"):
             llm_output += "\n```\n"
+        input_tokens = response.usage_metadata.prompt_token_count
+        total_token_count = response.usage_metadata.total_token_count
+        output_tokens = total_token_count - input_tokens
         return CallMetrics(
-            input_tokens=response.usage.total_input_tokens,
-            output_tokens=response.usage.total_output_tokens,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
             request_time_ms=elapsed_time_ms,
             api_url=config["url"],
-            model_name=response.model,
+            model_name=self.model_name,
             llm_output=llm_output,
             retries=0,
             prompt=prompt
@@ -240,6 +256,9 @@ class LLMCaller:
 
     def _call_cerebras_single(self, prompt: str, key_num: int) -> CallMetrics:
         """Single Cerebras API call with specific key"""
+        print(prompt)
+        import sys
+        sys.exit(0)
         from cerebras.cloud.sdk import Cerebras
         api_key = self._get_api_key("cerebras", key_num)
         if not api_key:
@@ -263,10 +282,11 @@ class LLMCaller:
             response = client.chat.completions.create(
                 messages=[{"role": "user", "content": prompt}],
                 model=self.model_name,
-                max_completion_tokens=256,
+                max_completion_tokens=512,
                 stream=False,
             )
         llm_output = response.choices[0].message.content
+        print(f"\n\nllm_output:\n{llm_output}\n\n")
         if llm_output is None or llm_output == 'None':
             raise Exception("llm_output is None")
         if not llm_output.endswith("```"):
@@ -476,5 +496,6 @@ class LLMCaller:
 
 
 if __name__ == '__main__':
-    caller = LLMCaller(provider='mistralai')
-    caller.call_llm("Tell me the meaning of life in very short")
+    caller = LLMCaller(provider='gemini')
+    m = caller.call_llm('Generate a python code block, then tell a short story')
+    print(m.llm_output)
