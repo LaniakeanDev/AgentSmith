@@ -140,7 +140,8 @@ class SWEBenchAgent(AbstractAgent):
         docker_cmd = [
             "docker", "run", "-d",  # detached, long-lived
             "--name", self.container_name,
-            "--network=none", "--cap-drop=ALL",
+            # "--network=none",
+            "--cap-drop=ALL",
             "--security-opt=no-new-privileges",
             "--pids-limit=64",
             f"--memory={self.config.max_memory_mb}m", "--cpus=1",
