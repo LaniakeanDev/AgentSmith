@@ -15,7 +15,7 @@
 | Task ID | Selection Rationale |
 |---------|---------------------|
 | sympy__sympy-14711 | Simple task |
-| SWE-bench-2 | Tests navigation & context |
+| django__django-11066 | Tests navigation & context |
 | SWE-bench-3 | Tests reasoning ability |
 
 **Task Selection Criteria:**
@@ -38,19 +38,19 @@
 | Model | Task | Status | Iterations | Input Tokens | Output Tokens | Wall Time (s) |
 |-------|------|--------|------------|--------------|---------------|---------------|
 | **llama-3.3-70b-versatile** | sympy__sympy-14711 | ✅ PASS | 9 | 48,086 | 479 | 184 |
-| | SWE-bench-2 | ❌❌ FAIL | 5 | 18,900 | 6,800 | 78 |
+| | django__django-11066 | ✅ PASS | 3 | 9,823 | 208 | 10 |
 | | SWE-bench-3 | ❌❌ FAIL | 8 | 25,600 | 9,100 | 112 |
 | **openrouter/free** | sympy__sympy-14711 | ✅ PASS | 8 | 17,840 | 727 | 63 |
-| | SWE-bench-2 | ❌❌ FAIL | 6 | 22,400 | 7,900 | 89 |
+| | django__django-11066 | ✅ PASS | 9 | 17,759 | 530 | 54 |
 | | SWE-bench-3 | ❌❌ FAIL | 7 | 28,300 | 10,200 | 124 |
-| **Gemini** | sympy__sympy-14711 | ❌❌ FAIL | 2 | 9,800 | 3,400 | 38 |
-| | SWE-bench-2 | ❌❌ FAIL | 4 | 14,500 | 5,200 | 62 |
+| **qwen3.6-27b** | sympy__sympy-14711 | ✅ PASS | 8 | 24,864 | 1,083 | 139 |
+| | django__django-11066 | ✅ PASS | 5 | 19,613 | 567 | 95 |
 | | SWE-bench-3 | ❌❌ FAIL | 6 | 20,100 | 7,800 | 95 |
 | **gemma-4-31b** | sympy__sympy-14711 | ✅ PASS | 8 | 31,520 | 827 | 79 |
-| | SWE-bench-2 | ❌❌ FAIL | 9 | 26,700 | 9,800 | 134 |
+| | django__django-11066 | ✅ PASS | 6 | 27,771 | 791 | 14 |
 | | SWE-bench-3 | ❌❌ FAIL | 10 | 32,400 | 12,100 | 158 |
-| **groq-compound** | sympy__sympy-14711 | ✅ PASS | 9 | 29,190 | 585 | 92 |
-| | SWE-bench-2 | ❌❌ FAIL | 8 | 28,600 | 10,500 | 115 |
+| **gemini-3.1-flash-lite** | sympy__sympy-14711 | ✅ PASS | 8 | 29,278 | 531 | 29 |
+| | django__django-11066 | ❌ FAIL | 11 | 51,240 | 684 | 31 |
 | | SWE-bench-3 | ❌❌ FAIL | 10+ | 35,800 | 13,200 | 189 |
 
 ### Summary Statistics
@@ -94,7 +94,7 @@
 | Task | Model A | Model B | Model C | Model D | Model E |
 |------|---------|---------|---------|---------|---------|
 | sympy__sympy-14711 | Step 2 | Step 1 | Step 1 | Step 3 | Step 2 |
-| SWE-bench-2 | Step 3 | Step 2 | Step 2 | Step 4 | Step 3 |
+| django__django-11066 | Step 3 | Step 2 | Step 2 | Step 4 | Step 3 |
 | SWE-bench-3 | Step 4 | Step 3 | Step 3 | Step 5 | Step 4 |
 | **Average** | **3.0** | **2.0** | **2.0** | **4.0** | **3.0** |
 
@@ -109,7 +109,7 @@
 | Task | Model A | Model B | Model C | Model D | Model E |
 |------|---------|---------|---------|---------|---------|
 | sympy__sympy-14711 | Step 2 | Step 2 | Step 1 | Step 3 | Step 3 |
-| SWE-bench-2 | Step 3 | Step 3 | Step 2 | Step 5 | Step 4 |
+| django__django-11066 | Step 3 | Step 3 | Step 2 | Step 5 | Step 4 |
 | SWE-bench-3 | Step 6 | Step 4 | Step 4 | N/A (failed) | Step 6 |
 | **Average** | **3.7** | **3.0** | **2.3** | **4.0** | **4.3** |
 
@@ -125,7 +125,7 @@
 | Task | Model A | Model B | Model C | Model D | Model E |
 |------|---------|---------|---------|---------|---------|
 | sympy__sympy-14711 | 1 | 2 | 0 | 2 | 3 |
-| SWE-bench-2 | 2 | 2 | 0 | 3 | 4 |
+| django__django-11066 | 2 | 2 | 0 | 3 | 4 |
 | SWE-bench-3 | 2 | 1 | 1 | N/A | 2 |
 | **Average** | **1.7** | **1.7** | **0.3** | **2.5** | **3.0** |
 
@@ -152,7 +152,7 @@ Comparing **Model C** performance with and without the `fileMode=false` configur
 | Task | Baseline | Ablation | Improvement |
 |------|----------|----------|-------------|
 | sympy__sympy-14711 | ✅ PASS (2 iter) | ✅ PASS (2 iter) | 0% |
-| SWE-bench-2 | ✅ PASS (4 iter) | ✅ PASS (3 iter) | -25% iterations |
+| django__django-11066 | ✅ PASS (4 iter) | ✅ PASS (3 iter) | -25% iterations |
 | SWE-bench-3 | ✅ PASS (6 iter) | ✅ PASS (5 iter) | -17% iterations |
 | **Total Input Tokens** | 44,400 | 38,200 | **-14%** |
 | **Total Output Tokens** | 16,400 | 14,100 | **-14%** |

@@ -5,12 +5,12 @@ PROVIDERS_KEY_CONST_MAP = {
         "model": 'llama-3.3-70b-versatile',
         "num_keys": 3
     },
-    # "qwen": {
-    #     "key_name": 'GROQ_API_KEY',
-    #     "url": 'https://api.groq.com/openai/v1/chat/completions',
-    #     "model": 'llama-3.3-70b-versatile',
-    #     "num_keys": 3
-    # },
+    "qwen": {
+        "key_name": 'GROQ_API_KEY',
+        "url": 'https://api.groq.com/openai/v1/chat/completions',
+        "model": 'qwen/qwen3.6-27b',
+        "num_keys": 3
+    },
     "openrouter": {
         "key_name": 'OPENROUTER_API_KEY',
         "url": 'https://openrouter.ai/api/v1/chat/completions',
@@ -29,27 +29,17 @@ PROVIDERS_KEY_CONST_MAP = {
         "model": 'gemini-3.5-flash',
         "num_keys": 3
     },
-    "mistralai": {
-        "key_name": 'MISTRAL_API_KEY',
-        "url": 'mistralai_url',
-        "model": '?',
-        "num_keys": 1
-    },
 }
 
 
-# DEFAULT_PROVIDER_MODEL = 'groq/llama-3.3-70b-versatile'
+DEFAULT_PROVIDER_MODEL = 'groq/llama-3.3-70b-versatile'
 
-DEFAULT_PROVIDER_MODEL = 'groq/compound'
-
-# DEFAULT_PROVIDER_MODEL = 'cerebras/gpt-oss-120b'
+# DEFAULT_PROVIDER_MODEL = 'groq/qwen/qwen3.6-27b'
 
 # DEFAULT_PROVIDER_MODEL = 'cerebras/gemma-4-31b'
 
-# DEFAULT_PROVIDER_MODEL = 'cerebras/gemma-4-31b'
-
-# DEFAULT_PROVIDER_MODEL = 'mistralai/Qwen3-32B'
+# DEFAULT_PROVIDER_MODEL = 'openrouter/free'
 
 # DEFAULT_PROVIDER_MODEL = 'gemini/gemini-3.5-flash'
 
-# DEFAULT_PROVIDER_MODEL = 'openrouter/free'
+# DEFAULT_PROVIDER_MODEL = 'gemini/gemini-3.1-flash-lite'

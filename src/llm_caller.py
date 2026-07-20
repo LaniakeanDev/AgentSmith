@@ -4,7 +4,6 @@ import os
 import time
 import requests
 from constants import PROVIDERS_KEY_CONST_MAP
-from mistralai.client import Mistral
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -48,41 +47,9 @@ class CallMetrics:
 
 # ==================== Configuration ====================
 
-# PROVIDERS_KEY_CONST_MAP = {
-#     "groq": {
-#         "key_name": 'GROQ_API_KEY',
-#         "url": 'https://api.groq.com/openai/v1/chat/completions',
-#         "model": 'llama-3.3-70b-versatile',
-#         "num_keys": 3
-#     },
-#     "qwen": {
-#         "key_name": 'QWEN_API_KEY',
-#         "url": 'https://router.huggingface.co/v1/chat/completions',
-#         "model": 'Qwen/Qwen3-32B',
-#         "num_keys": 3
-#     },
-#     "openrouter": {
-#         "key_name": 'OPENROUTER_API_KEY',
-#         "url": 'https://openrouter.ai/api/v1/chat/completions',
-#         "model": 'openrouter/free',
-#         "num_keys": 4
-#     },
-#     "cerebras": {
-#         "key_name": 'CEREBRAS_API_KEY',
-#         "url": 'cerebras_url',
-#         "model": 'cerebras/zai-glm-4.7',
-#         "num_keys": 3
-#     },
-#     "gemini": {
-#         "key_name": 'GEMINI_API_KEY',
-#         "url": 'gemini_url',
-#         "model": 'gemini-3.5-flash',
-#         "num_keys": 3
-#     },
-# }
-
 # Default priority order for provider rotation
-DEFAULT_PROVIDER_PRIORITY = ["gemini", "cerebras", "groq", "qwen", "openrouter", 'mistralai']
+DEFAULT_PROVIDER_PRIORITY = \
+    ["gemini", "cerebras", "groq", "openrouter", 'qwen']
 
 
 # ==================== Main LLM Caller Class ====================
@@ -138,23 +105,15 @@ class LLMCaller:
 
     def _call_gemini_single(self, prompt: str, key_num: int) -> CallMetrics:
         """Single Gemini API call with specific key"""
-        print("Calling Gemini...")
+        print(f"Calling Gemini ({self.model_name})...")
         from google import genai
         from google.genai import types
-
         api_key = self._get_api_key("gemini", key_num)
         if not api_key:
             raise RateLimitError(f"No API key for gemini_{key_num}")
-
         config = PROVIDERS_KEY_CONST_MAP["gemini"]
         client = genai.Client(api_key=api_key)
-
         start_time = time.time()
-        config = {
-            # 'max_output_tokens': 256,
-            'max_output_tokens': 3,
-            'stop_sequences': ["\n```\n"]
-        }
         response = client.models.generate_content(
             model=self.model_name,
             contents=prompt,
@@ -183,46 +142,6 @@ class LLMCaller:
             prompt=prompt
         )
 
-    def _call_mistral_single(self, prompt: str, key_num: int) -> CallMetrics:
-        """Single Mistral AI API call with specific key"""
-        print("Calling Mistral...")
-        config = PROVIDERS_KEY_CONST_MAP["mistralai"]
-        api_key = self._get_api_key("mistralai", key_num)
-        if not api_key:
-            raise RateLimitError(f"No API key for mistralai_{key_num}")
-        start_time = time.time()
-        with Mistral(
-            api_key=api_key
-        ) as mistral:
-            response = mistral.chat.complete(
-                model="mistral-large-latest",
-                messages=[
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    },
-                ],
-                stream=False,
-                response_format={"type": "text"}
-            )
-        elapsed_time_ms = (time.time() - start_time) * 1000
-        print(response)
-        # llm_output = response.output_text
-        # if llm_output is None or llm_output == 'None':
-        #     raise Exception("llm_output is None")
-        # if not llm_output.endswith("```"):
-        #     llm_output += "\n```\n"
-        # return CallMetrics(
-        #     input_tokens=response.usage.total_input_tokens,
-        #     output_tokens=response.usage.total_output_tokens,
-        #     request_time_ms=elapsed_time_ms,
-        #     api_url=config["url"],
-        #     model_name=response.model,
-        #     llm_output=llm_output,
-        #     retries=0,
-        #     prompt=prompt
-        # )
-
     def _call_groq_single(self, prompt: str, key_num: int) -> CallMetrics:
         """Single Groq API call with specific key"""
         print(f"Calling Groq ({self.model_name})...")
@@ -237,7 +156,7 @@ class LLMCaller:
 
         response = client.chat.completions.create(
             messages=[{"role": "user", "content": prompt}],
-            model=config["model"],
+            model=self.model_name,
             stop=["\n```\n"]
         )
         llm_output = response.choices[0].message.content
@@ -359,16 +278,17 @@ class LLMCaller:
         self, prompt: str, provider: str, key_num: int, timeout: int = 30
     ) -> CallMetrics:
         """Route to appropriate single-call method based on provider"""
+        # print("_call_provider_single...")
         dispatch = {
             "gemini": lambda: self._call_gemini_single(prompt, key_num),
             "groq": lambda: self._call_groq_single(prompt, key_num),
             "cerebras": lambda: self._call_cerebras_single(prompt, key_num),
         }
-        
-        if provider in dispatch:
+        if provider.lower() in dispatch:
             return dispatch[provider]()
         else:
-            return self._call_generic_single(prompt, provider, key_num, timeout)
+            return self._call_generic_single(
+                prompt, provider, key_num, timeout)
 
     # ==================== Key Rotation with Retries ====================
 
@@ -384,6 +304,7 @@ class LLMCaller:
 
         Raises ProviderExhaustedError if all keys are exhausted.
         """
+        # print("_try_provider_with_key_rotation...")
         config = PROVIDERS_KEY_CONST_MAP[provider]
         num_keys = config.get("num_keys", 1)
         total_retries = 0
@@ -408,8 +329,9 @@ class LLMCaller:
                         print(f"[{provider}] Key {key_num} rate limited (HTTP), rotating key")
                         break
                     elif attempt < self.max_retries_per_key - 1:
-                        print(f"[{provider}] Key {key_num} error {attempt+1}/\
-                            {self.max_retries_per_key}: {e}")
+                        print(f"[{provider}] Key {key_num} error {attempt+1}/"
+                              f"{self.max_retries_per_key}: "
+                              f"{type(e).__name__}: {e}")
                         time.sleep(1)
                         continue
                     else:
@@ -422,8 +344,9 @@ class LLMCaller:
                         print(f"[{provider}] Key {key_num} rate limited, rotating key")
                         break
                     elif attempt < self.max_retries_per_key - 1:
-                        print(f"[{provider}] Key {key_num} error {attempt+1}/\
-                            {self.max_retries_per_key}: {e}")
+                        print(f"[{provider}] Key {key_num} error {attempt+1}/"
+                              f"{self.max_retries_per_key}: "
+                              f"{type(e).__name__}: {e}")
                         time.sleep(1)
                         continue
                     else:
@@ -470,7 +393,8 @@ class LLMCaller:
 
         while True:
             try:
-                return self._try_provider_with_key_rotation(prompt, self.provider, timeout)
+                return self._try_provider_with_key_rotation(
+                    prompt, self.provider, timeout)
 
             except ProviderExhaustedError as e:
                 errors.append(str(e))
@@ -493,6 +417,6 @@ class LLMCaller:
 
 
 if __name__ == '__main__':
-    caller = LLMCaller(provider='gemini')
-    m = caller.call_llm('Generate a python code block, then tell a short story')
+    caller = LLMCaller(provider='qwen', model='qwen/qwen3.6-27b')
+    m = caller.call_llm('Generate a python code block starting with ```python, then tell a short story')
     print(m.llm_output)

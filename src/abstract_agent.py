@@ -27,7 +27,8 @@ class AbstractAgent:
             print(f"WARNING: Provider/model invalid: {provider_model}")
             self.provider = DEFAULT_PROVIDER_MODEL.split('/')[0]
             print(f"Switching to {self.provider} instead")
-            self.model_name = DEFAULT_PROVIDER_MODEL.split('/')[1]
+            idx = DEFAULT_PROVIDER_MODEL.find('/')
+            self.model_name = DEFAULT_PROVIDER_MODEL[idx + 1:]
             self.provider_url = PROVIDERS_KEY_CONST_MAP[self.provider]["url"]
         else:
             self.provider = split_provider_model[0].lower()
