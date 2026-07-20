@@ -13,7 +13,6 @@ dependencies = [
     { name = "google-genai" },
     { name = "groq" },
     { name = "mcp", extra = ["cli"] },
-    { name = "mistralai" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "requests" },
@@ -27,7 +26,6 @@ requires-dist = [
     { name = "google-genai", specifier = ">=2.10.0" },
     { name = "groq", specifier = ">=1.5.0" },
     { name = "mcp", extras = ["cli"], specifier = ">=1.28.0" },
-    { name = "mistralai", specifier = ">=2.7.0" },
     { name = "pydantic", specifier = ">=2.13.4" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
     { name = "requests", specifier = ">=2.34.2" },
@@ -601,24 +599,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/b3/38/89ba8ad64ae25be8de66a6d463314cf1eb366222074cfda9ee839c56a4b4/mdurl-0.1.2-py3-none-any.whl", hash = "sha256:84008a41e51615a49fc9966191ff91509e3c40b939176e643fd50a5c2196b8f8", size = 9979, upload-time = "2022-08-14T12:40:09.779Z" },
 ]
 
-[[package]]
-name = "mistralai"
-version = "2.7.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "eval-type-backport" },
-    { name = "httpx" },
-    { name = "jsonpath-python" },
-    { name = "opentelemetry-api" },
-    { name = "opentelemetry-semantic-conventions" },
-    { name = "pydantic" },
-    { name = "python-dateutil" },
-    { name = "typing-inspection" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/79/1e/d0d55cad621d46ae4937066fb4562ed8d1cf5612af74e8045b9a22ad5e39/mistralai-2.7.0.tar.gz", hash = "sha256:defc51a40e94b365189e8acdf8f0e41463db814f39b2b4274a6ce84ade156708", size = 525685, upload-time = "2026-07-17T08:01:38.981Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/df/a97825d333072bea7c7d676b72d95ecfc72510c62c8b026fe961d99f92fc/mistralai-2.7.0-py3-none-any.whl", hash = "sha256:7fe0ddb7fda34b136ddbd1fffd27b1472d70a393c4115a134fa80468db14cb57", size = 1250502, upload-time = "2026-07-17T08:01:36.924Z" },
-]
 
 [[package]]
 name = "multidict"
