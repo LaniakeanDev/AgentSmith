@@ -46,7 +46,7 @@ class Sandbox:
                 config=self.config,
                 eval_script=self.eval_script,
                 test_list=self.test_list,
-                mbpp_code=self.code
+                code=self.code
                 )
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
