@@ -20,7 +20,7 @@ run-mbpp:
 dump-swe:
 	(cd moulinette && uv run moulinette_eval dump swebench --output ../cache/swebench_task.json)
 
-dump-swe-task-%:
+dump-swe-%:
 	(cd moulinette && uv run moulinette_eval dump swebench --task-id $* --output ../cache/swebench_task.json)
 
 run-swe:
