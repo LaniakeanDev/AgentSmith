@@ -20,7 +20,7 @@
       "llm_output": "\n```\n",
       "sandbox_input": "result = search_code(pattern=\"content_type.save(update_fields={'model'})\")\nprint(result)\n",
       "sandbox_output": "\n/testbed/django/contrib/contenttypes/management/__init__.py:27:                    content_type.save(update_fields={'model'})\n",
-      "retries": 0
+      "retries": 1
     },
     {
       "step": 3,
