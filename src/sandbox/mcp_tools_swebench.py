@@ -415,6 +415,9 @@ def edit_file(filepath: str,
                 #     'success': False,
                 #     'message': f"'{old_str}' not found in {filepath}"
                 # }
+            message = f"'{old_str}' not found in {filepath}\n"
+            message += "If you are trying multi-line edit, consider "
+            message += "using edit_file_at() and edit line by line"
             return {
                 'tool_call': tool_call,
                 'success': False,
@@ -1010,7 +1013,7 @@ def run_command(
                 'error': f'Working directory does not exist: {workdir}',
                 'command': command,
                 'stdout': '',
-                'stderr': '',
+                'stderr': f'Working directory does not exist: {workdir}',
                 'exit_code': -1
             }
         if not workdir_path.is_dir():
@@ -1019,7 +1022,7 @@ def run_command(
                 'error': f'Path is not a directory: {workdir}',
                 'command': command,
                 'stdout': '',
-                'stderr': '',
+                'stderr': f'Path is not a directory: {workdir}',
                 'exit_code': -1
             }
     else:
@@ -1066,7 +1069,7 @@ def run_command(
             'error': f'Command not found: {command}',
             'command': command,
             'stdout': '',
-            'stderr': '',
+            'stderr': f'Command not found: {command}',
             'exit_code': -1
         }
     except PermissionError:
@@ -1075,7 +1078,7 @@ def run_command(
             'error': f'Permission denied executing: {command}',
             'command': command,
             'stdout': '',
-            'stderr': '',
+            'stderr': f'Permission denied executing: {command}',
             'exit_code': -1
         }
     except Exception as e:
@@ -1084,7 +1087,7 @@ def run_command(
             'error': f'{type(e).__name__}: {str(e)}',
             'command': command,
             'stdout': '',
-            'stderr': '',
+            'stderr': f'{type(e).__name__}: {str(e)}',
             'exit_code': -1
         }
 

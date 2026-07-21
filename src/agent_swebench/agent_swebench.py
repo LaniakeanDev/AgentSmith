@@ -64,6 +64,8 @@ class SWEBenchAgent(AbstractAgent):
         ], capture_output=True, text=True)
         if pull_result.returncode != 0:
             raise RuntimeError(f"Pull failed: {pull_result.stderr}")
+        if not base_image.startswith(("docker.io/", "quay.io/", "ghcr.io/", "gcr.io/")):
+            base_image = f"docker.io/{base_image}"
         self.image_name = f"swebench_{self.task.instance_id}_{int(time.time())}"
         self.container_name = f"{self.image_name}_container"
         print(f"Building image {self.image_name} ...")

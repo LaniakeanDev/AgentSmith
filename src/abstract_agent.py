@@ -66,7 +66,7 @@ class AbstractAgent:
         if match:
             code = match.group(1)
             code = self.sanitize_code(code)
-            if code == "No code could be extracted":
+            if code == "No code could be extracted" or code == '\n':
                 return None, None
             truncated_output = llm_output[:match.end(1)]
             return code, truncated_output

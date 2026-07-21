@@ -63,13 +63,17 @@ List:
 |sympy__sympy-13480||||✅||||
 |django__django-11066||||✅||||
 |sympy__sympy-13480||||✅||||
-|scikit-learn__scikit-learn-13439||||||||
+|scikit-learn__scikit-learn-13439||||✅||||
 |xxxxxxxxx||||||||
 |xxxxxxxxx||||||||
 |xxxxxxxxx||||||||
 |xxxxxxxxx||||||||
 |xxxxxxxxx||||||||
 |xxxxxxxxx||||||||
+
+
+15 to 60
+sympy__sympy-18189 ✅
 
 
 Agent system descriptions — how do the top-performing systems design their agent loop, tools, and prompts?

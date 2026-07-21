@@ -21,6 +21,11 @@ uv run moulinette_eval validate mbpp ../cache/mbpp_task.json ../cache/mbpp_solut
 ## SWEBench Moulinette
 
 ```bash
-docker pull image_name
+make socket
 ```
+
+```bash
+uv run moulinette_eval validate swebench ../cache/swebench_task.json ../cache/swebench_solution.json
+```
+makefile rule
 

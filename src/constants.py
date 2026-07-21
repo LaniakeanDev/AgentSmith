@@ -36,10 +36,8 @@ PROVIDERS_KEY_CONST_MAP = {
 
 # DEFAULT_PROVIDER_MODEL = 'groq/qwen/qwen3.6-27b'
 
-DEFAULT_PROVIDER_MODEL = 'cerebras/gemma-4-31b'
+# DEFAULT_PROVIDER_MODEL = 'cerebras/gemma-4-31b'
 
-# DEFAULT_PROVIDER_MODEL = 'openrouter/free'
-
-# DEFAULT_PROVIDER_MODEL = 'gemini/gemini-3.5-flash'
+DEFAULT_PROVIDER_MODEL = 'openrouter/free'
 
 # DEFAULT_PROVIDER_MODEL = 'gemini/gemini-3.1-flash-lite'

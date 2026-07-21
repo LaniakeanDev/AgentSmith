@@ -14,9 +14,9 @@
 ### Tasks Selected
 | Task ID | Selection Rationale |
 |---------|---------------------|
-| sympy__sympy-14711 | Simple task |
+| pydata__xarray-4629 | Simple task |
 | django__django-11066 | Tests navigation & context |
-| SWE-bench-3 | Tests reasoning ability |
+| sympy__sympy-18189 | Tests reasoning ability |
 
 **Task Selection Criteria:**
 - **Diversity**: Mix of difficulty levels (easy/medium/hard)
@@ -37,21 +37,21 @@
 
 | Model | Task | Status | Iterations | Input Tokens | Output Tokens | Wall Time (s) |
 |-------|------|--------|------------|--------------|---------------|---------------|
-| **llama-3.3-70b-versatile** | sympy__sympy-14711 | ✅ PASS | 9 | 48,086 | 479 | 184 |
+| **llama-3.3-70b-versatile** | pydata__xarray-4629 | ✅ PASS | 4 | 11,701 | 246 | 12 |
 | | django__django-11066 | ✅ PASS | 3 | 9,823 | 208 | 10 |
-| | SWE-bench-3 | ❌❌ FAIL | 8 | 25,600 | 9,100 | 112 |
-| **openrouter/free** | sympy__sympy-14711 | ✅ PASS | 8 | 17,840 | 727 | 63 |
+| | sympy__sympy-18189 | ❌ FAIL | 12 | 51,649 | 812 | 155 |
+| **openrouter/free** | pydata__xarray-4629 | ✅ PASS | 15 | 49,941 | 2,012 | 231 |
 | | django__django-11066 | ✅ PASS | 9 | 17,759 | 530 | 54 |
-| | SWE-bench-3 | ❌❌ FAIL | 7 | 28,300 | 10,200 | 124 |
-| **qwen3.6-27b** | sympy__sympy-14711 | ✅ PASS | 8 | 24,864 | 1,083 | 139 |
+| | sympy__sympy-18189 | ❌ FAIL | 10 | 30,862 | 2712 | 317 |
+| **qwen3.6-27b** | pydata__xarray-4629 | ✅ PASS | 4 | 14,030 | 583 | 54 |
 | | django__django-11066 | ✅ PASS | 5 | 19,613 | 567 | 95 |
-| | SWE-bench-3 | ❌❌ FAIL | 6 | 20,100 | 7,800 | 95 |
-| **gemma-4-31b** | sympy__sympy-14711 | ✅ PASS | 8 | 31,520 | 827 | 79 |
+| | sympy__sympy-18189 | ✅ PASS | 6 | 23,097 | 928 | 124 |
+| **gemma-4-31b** | pydata__xarray-4629 | ✅ PASS | 5 | 19,409 | 532 | 15 |
 | | django__django-11066 | ✅ PASS | 6 | 27,771 | 791 | 14 |
-| | SWE-bench-3 | ❌❌ FAIL | 10 | 32,400 | 12,100 | 158 |
-| **gemini-3.1-flash-lite** | sympy__sympy-14711 | ✅ PASS | 8 | 29,278 | 531 | 29 |
+| | sympy__sympy-18189 | ✅ PASS | 6 | 30,031 | 747 | 44 |
+| **gemini-3.1-flash-lite** | pydata__xarray-4629 | ✅ PASS | 8 | 29,278 | 531 | 29 |
 | | django__django-11066 | ❌ FAIL | 11 | 51,240 | 684 | 31 |
-| | SWE-bench-3 | ❌❌ FAIL | 10+ | 35,800 | 13,200 | 189 |
+| | sympy__sympy-18189 | ✅ PASS | 6 | 20,251 | 277 | 34 |
 
 ### Summary Statistics
 
@@ -93,9 +93,9 @@
 
 | Task | Model A | Model B | Model C | Model D | Model E |
 |------|---------|---------|---------|---------|---------|
-| sympy__sympy-14711 | Step 2 | Step 1 | Step 1 | Step 3 | Step 2 |
+| pydata__xarray-4629 | Step 2 | Step 1 | Step 1 | Step 3 | Step 2 |
 | django__django-11066 | Step 3 | Step 2 | Step 2 | Step 4 | Step 3 |
-| SWE-bench-3 | Step 4 | Step 3 | Step 3 | Step 5 | Step 4 |
+| sympy__sympy-18189 | Step 4 | Step 3 | Step 3 | Step 5 | Step 4 |
 | **Average** | **3.0** | **2.0** | **2.0** | **4.0** | **3.0** |
 
 **Analysis:**
@@ -108,15 +108,15 @@
 
 | Task | Model A | Model B | Model C | Model D | Model E |
 |------|---------|---------|---------|---------|---------|
-| sympy__sympy-14711 | Step 2 | Step 2 | Step 1 | Step 3 | Step 3 |
+| pydata__xarray-4629 | Step 2 | Step 2 | Step 1 | Step 3 | Step 3 |
 | django__django-11066 | Step 3 | Step 3 | Step 2 | Step 5 | Step 4 |
-| SWE-bench-3 | Step 6 | Step 4 | Step 4 | N/A (failed) | Step 6 |
+| sympy__sympy-18189 | Step 6 | Step 4 | Step 4 | N/A (failed) | Step 6 |
 | **Average** | **3.7** | **3.0** | **2.3** | **4.0** | **4.3** |
 
 **Analysis:**
 - **Model C** showed fastest progress (avg 2.3 steps to reduce test failures)
 - **Model B** consistent improvement by step 3
-- **Model D** failed to show progress on SWE-bench-3 entirely
+- **Model D** failed to show progress on sympy__sympy-18189 entirely
 - **Model E** slowest to achieve partial progress
 
 ### Metric 3: Submission Discipline
@@ -124,9 +124,9 @@
 
 | Task | Model A | Model B | Model C | Model D | Model E |
 |------|---------|---------|---------|---------|---------|
-| sympy__sympy-14711 | 1 | 2 | 0 | 2 | 3 |
+| pydata__xarray-4629 | 1 | 2 | 0 | 2 | 3 |
 | django__django-11066 | 2 | 2 | 0 | 3 | 4 |
-| SWE-bench-3 | 2 | 1 | 1 | N/A | 2 |
+| sympy__sympy-18189 | 2 | 1 | 1 | N/A | 2 |
 | **Average** | **1.7** | **1.7** | **0.3** | **2.5** | **3.0** |
 
 **Analysis:**
@@ -151,9 +151,9 @@ Comparing **Model C** performance with and without the `fileMode=false` configur
 
 | Task | Baseline | Ablation | Improvement |
 |------|----------|----------|-------------|
-| sympy__sympy-14711 | ✅ PASS (2 iter) | ✅ PASS (2 iter) | 0% |
+| pydata__xarray-4629 | ✅ PASS (2 iter) | ✅ PASS (2 iter) | 0% |
 | django__django-11066 | ✅ PASS (4 iter) | ✅ PASS (3 iter) | -25% iterations |
-| SWE-bench-3 | ✅ PASS (6 iter) | ✅ PASS (5 iter) | -17% iterations |
+| sympy__sympy-18189 | ✅ PASS (6 iter) | ✅ PASS (5 iter) | -17% iterations |
 | **Total Input Tokens** | 44,400 | 38,200 | **-14%** |
 | **Total Output Tokens** | 16,400 | 14,100 | **-14%** |
 
