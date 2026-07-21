@@ -80,7 +80,8 @@ class Spawner:
                 "config": self.config.model_dump(),
                 "code": code,
                 "task_type": task_type,
-                "eval_script": self.task.eval_script
+                "eval_script": self.task.eval_script,
+                "repo": self.task.repo
             }
         else:
             task_type = "sandbox"

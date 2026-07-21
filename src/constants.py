@@ -32,11 +32,11 @@ PROVIDERS_KEY_CONST_MAP = {
 }
 
 
-DEFAULT_PROVIDER_MODEL = 'groq/llama-3.3-70b-versatile'
+# DEFAULT_PROVIDER_MODEL = 'groq/llama-3.3-70b-versatile'
 
 # DEFAULT_PROVIDER_MODEL = 'groq/qwen/qwen3.6-27b'
 
-# DEFAULT_PROVIDER_MODEL = 'cerebras/gemma-4-31b'
+DEFAULT_PROVIDER_MODEL = 'cerebras/gemma-4-31b'
 
 # DEFAULT_PROVIDER_MODEL = 'openrouter/free'
 

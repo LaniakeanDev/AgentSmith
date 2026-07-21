@@ -1,3 +1,5 @@
+import signal
+import time
 from typing import Any, Dict
 
 from mcp.server.fastmcp import FastMCP
@@ -24,7 +26,7 @@ class TestResultParser:
     def __init__(self, test_type: str) -> None:
         self.test_type = test_type
         self.dispatch = {
-            'sympy': self.parse_pytest,
+            'sympy': self.parse_sympy,
             'django': self.parse_django_unittest,
             'psf': self.parse_pytest,
             'pallets': self.parse_pytest,
@@ -43,9 +45,46 @@ class TestResultParser:
         if exit_code != 0:
             return False
         low_stdout = stdout.lower()
-        if "passed" in low_stdout and "fail" not in low_stdout:
+        # Pytest's real failure signal is a summary token, not the bare
+        # substring "fail" (which also matches "xfailed", "failed: 0", etc.)
+        if re.search(r"\b\d+\s+failed\b", low_stdout):
+            return False
+        if re.search(r"\berror(s)?\b", low_stdout) and "0 errors" not in low_stdout:
+            # be conservative; adjust per-framework if this over-triggers
+            pass
+        if re.search(r"\b\d+\s+passed\b", low_stdout):
             return True
-        return False
+        return None
+
+    def parse_sympy(self, stdout: str, exit_code: int) -> bool | None:
+        """sympy's bin/test runner, not pytest."""
+        summary_match = re.search(
+            r"tests finished:\s*(?P<body>.+?)\s*(?:,\s*in\s+[\d.]+\s*seconds)?\s*==",
+            stdout,
+            re.IGNORECASE,
+        )
+        if not summary_match:
+            return False if exit_code != 0 else None
+        body = summary_match.group("body")
+        # Grab counts, being careful "expected to fail" doesn't get counted as "failed"
+        failed = re.search(r"(\d+)\s+failed\b", body)
+        # expected_fail = re.search(r"(\d+)\s+expected to fail\b", body)
+        passed = re.search(r"(\d+)\s+passed\b", body)
+        n_failed = int(failed.group(1)) if failed else 0
+        # n_expected_fail = int(expected_fail.group(1)) if expected_fail else 0
+        n_passed = int(passed.group(1)) if passed else 0
+        # Also check for sympy's explicit per-file bracket status and the
+        # "DO *NOT* COMMIT!" banner it prints on genuine failures.
+        if "do *not* commit" in stdout.lower():
+            return False
+        if "[fail]" in stdout.lower():
+            return False
+        if n_failed > 0:
+            return False
+        if n_passed > 0:
+            return True
+        # Nothing definitive parsed
+        return None
 
     def parse_django_unittest(
             self, stdout: str, stderr: str, exit_code: int) -> bool | None:
@@ -67,7 +106,6 @@ class TestResultParser:
             return False
         if last_ok_pos > last_failed_pos:
             return exit_code == 0
-
         return None  # shouldn't happen, but stay conservative
 
     def parse_unittest_generic(
@@ -144,11 +182,12 @@ def read_file(
                         truncated = True
                         break
                     lines.append(f"{i}: {line.rstrip()}")
-        result = '\n'.join(lines) if lines else None
+        result = f"This file has {line_count} lines\n"
+        result += '\n'.join(lines) if lines else None
         if result is not None and truncated:
             last_line = start_line + MAX_LINES - 1
             result += f"\n... (truncated at line {last_line}; "\
-                "call again with start_line={last_line + 1} to continue)"
+                f"call again with start_line={last_line + 1} to continue)"
         return result if result else \
             f"No lines found in range {start_line}-{end_line}"
     except FileNotFoundError:
@@ -344,9 +383,10 @@ def edit_file(filepath: str,
         new_str, line_nbr) instead.
     """
     # Validate inputs
+    tool_call = f'edit_file({filepath}, {old_str}, {new_str})'
     if not old_str:
         return {
-            'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
+            'tool_call': tool_call,
             'success': False,
             'message': "old_str cannot be empty"
         }
@@ -359,23 +399,27 @@ def edit_file(filepath: str,
         if old_str not in content:
             if new_str in content:
                 return {
-                    'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
+                    'tool_call': tool_call,
                     'success': True,
                     'message': f"no-op: this change is already applied, '{new_str}' is already in {filepath}"
                 }
-            variant1 = old_str.replace("'", '"')
-            variant2 = old_str.replace('"', "'")
-            if variant1 in content:
-                old_str = variant1
-            elif variant2 in content:
-                old_str = variant2
-            else:
-                return {
-                    'tool_call':
-                        f'edit_file({filepath}, {old_str}, {new_str})',
-                    'success': False,
-                    'message': f"'{old_str}' not found in {filepath}"
-                }
+            # variant1 = old_str.replace("'", '"')
+            # variant2 = old_str.replace('"', "'")
+            # if variant1 in content:
+            #     old_str = variant1
+            # elif variant2 in content:
+            #     old_str = variant2
+            # else:
+                # return {
+                #     'tool_call': tool_call,
+                #     'success': False,
+                #     'message': f"'{old_str}' not found in {filepath}"
+                # }
+            return {
+                'tool_call': tool_call,
+                'success': False,
+                'message': f"'{old_str}' not found in {filepath}"
+            }
         # Count occurrences
         count = content.count(old_str)
         if count > 1:
@@ -385,32 +429,41 @@ def edit_file(filepath: str,
             message += "on which line is the occurence to be changed, then "
             message += "edit_file_at(filepath, old_str, new_str, line_nbr)"
             return {
-                'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
+                'tool_call': tool_call,
                 'success': False,
                 'message': message
             }
         # Perform replacement
         new_content = content.replace(old_str, new_str)
-        # Write back to file
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(new_content)
-        message = f"Replaced {count} occurrence(s) of '{old_str}' with "\
-                  f"'{new_str}' in {filepath}"
-        return {
-            'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
-            'success': True,
-            'message': message,
-            'count': count
-        }
+        try:
+            ast.parse(new_content)
+            # Write back to file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            message = f"Replaced 1 occurrence of '{old_str}' with "\
+                      f"'{new_str}' in {filepath}"
+            return {
+                'tool_call': tool_call,
+                'success': True,
+                'message': message,
+            }
+        except SyntaxError as e:
+            message = "Edit denied, because it would have intoduced "
+            message += f"a SyntaxError: {e}"
+            return {
+                'tool_call': tool_call,
+                'success': False,
+                'message': message
+            }
     except FileNotFoundError:
         return {
-            'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
+            'tool_call': tool_call,
             'success': False,
             'message': f"File not found: {filepath}"
         }
     except PermissionError:
         return {
-            'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
+            'tool_call': tool_call,
             'success': False,
             'message': f"Permission denied: {filepath}"
         }
@@ -418,13 +471,13 @@ def edit_file(filepath: str,
         message = f"File appears to be binary or has encoding issues: "\
                   f"{filepath}"
         return {
-            'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
+            'tool_call': tool_call,
             'success': False,
             'message': message
         }
     except Exception as e:
         return {
-            'tool_call': f'edit_file({filepath}, {old_str}, {new_str})',
+            'tool_call': tool_call,
             'success': False,
             'message': f"{type(e).__name__}: {str(e)}"
         }
@@ -453,15 +506,16 @@ def edit_file_at(
         edit_file_at(filepath, old_str, new_str, line_nbr)
         it will replace all occurences at line line_nbr
     """
+    tool_call = f'edit_file_at({filepath}, {old_str}, {new_str})'
     # Validate inputs
     if not old_str:
         return {
-            'tool_call':
-                'edit_file_at('
-                f'{filepath}, {old_str}, {new_str}, {line_nbr})',
+            'tool_call': tool_call,
             'success': False,
             'message': "old_str cannot be empty"
         }
+    old_str = old_str.rstrip('\n').strip()
+    new_str = new_str.rstrip('\n').strip()
     try:
         # Read the file
         file_path = Path(cwd) / filepath
@@ -470,9 +524,7 @@ def edit_file_at(
         lines = content.split('\n')
         if line_nbr < 1 or line_nbr > len(lines):
             return {
-                'tool_call':
-                    'edit_file_at('
-                    f'{filepath}, {old_str}, {new_str}, {line_nbr})',
+                'tool_call': tool_call,
                 'success': False,
                 'message': f"line_nbr {line_nbr} out of range"
             }
@@ -481,9 +533,7 @@ def edit_file_at(
         if count == 0:
             if new_str in target_line:
                 return {
-                    'tool_call':
-                        'edit_file_at('
-                        f'{filepath}, {old_str}, {new_str}, {line_nbr})',
+                    'tool_call': tool_call,
                     'success': True,
                     'message':
                         f"no-op: this change is already applied, '{new_str}' "
@@ -497,9 +547,7 @@ def edit_file_at(
                 old_str = variant2
             else:
                 return {
-                    'tool_call':
-                        'edit_file_at('
-                        f'{filepath}, {old_str}, {new_str}, {line_nbr})',
+                    'tool_call': tool_call,
                     'success': False,
                     'message':
                         f"'{old_str}' not found in {filepath} at line"
@@ -511,40 +559,41 @@ def edit_file_at(
         new_line = target_line.replace(old_str, new_str)
         if new_line == target_line:
             return {
-                'tool_call':
-                    'edit_file_at('
-                    f'{filepath}, {old_str}, {new_str}, {line_nbr})',
+                'tool_call': tool_call,
                 'success': False,
                 'message': "replacement produced no change"
             }
         lines[line_nbr - 1] = new_line
         new_content = '\n'.join(lines)
-        # Write back to file
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(new_content)
-        message = f"Replaced {count} occurrence(s) of '{old_str}' with "\
-                  f"'{new_str}' in {filepath} at line {line_nbr}"
-        return {
-            'tool_call':
-                'edit_file_at('
-                f'{filepath}, {old_str}, {new_str}, {line_nbr})',
-            'success': True,
-            'message': message,
-            'count': count
-        }
+        try:
+            ast.parse(new_content)
+            # Write back to file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(new_content)
+            message = f"Replaced 1 occurrence of '{old_str}' with "\
+                      f"'{new_str}' in {filepath}"
+            return {
+                'tool_call': tool_call,
+                'success': True,
+                'message': message,
+            }
+        except SyntaxError as e:
+            message = "Edit denied, because it would have intoduced "
+            message += f"a SyntaxError: {e}"
+            return {
+                'tool_call': tool_call,
+                'success': False,
+                'message': message
+            }
     except FileNotFoundError:
         return {
-            'tool_call':
-                'edit_file_at('
-                f'{filepath}, {old_str}, {new_str}, {line_nbr})',
+            'tool_call': tool_call,
             'success': False,
             'message': f"File not found: {filepath}"
         }
     except PermissionError:
         return {
-            'tool_call':
-                'edit_file_at('
-                f'{filepath}, {old_str}, {new_str}, {line_nbr})',
+            'tool_call': tool_call,
             'success': False,
             'message': f"Permission denied: {filepath}"
         }
@@ -552,17 +601,13 @@ def edit_file_at(
         message = f"File appears to be binary or has encoding issues: "\
                   f"{filepath}"
         return {
-            'tool_call':
-                'edit_file_at('
-                f'{filepath}, {old_str}, {new_str}, {line_nbr})',
+            'tool_call': tool_call,
             'success': False,
             'message': message
         }
     except Exception as e:
         return {
-            'tool_call':
-                'edit_file_at('
-                f'{filepath}, {old_str}, {new_str}, {line_nbr})',
+            'tool_call': tool_call,
             'success': False,
             'message': f"{type(e).__name__}: {str(e)}"
         }
@@ -868,10 +913,11 @@ def run_tests() -> Dict:
         'sphinx',
         'pylint',
     ]
+    repo = os.environ.get('repo')
     test_type = "pytest"
     if eval_script is not None:
         for test in TEST_TYPES:
-            if test in eval_script:
+            if (repo is not None and test in repo) or test in eval_script:
                 test_type = test
                 break
     test_result_parser = TestResultParser(test_type)
@@ -883,15 +929,12 @@ def run_tests() -> Dict:
             stderr=subprocess.PIPE,
             text=True,
             cwd=cwd,
-            env={**os.environ}
+            env={**os.environ},
+            preexec_fn=os.setsid,
         )
         # Send the script to bash's stdin with a timeout
-        stdout, stderr = process.communicate(input=eval_script, timeout=30)
+        stdout, stderr = process.communicate(input=eval_script, timeout=180)
         exit_code = process.returncode
-        # test_result_parser.parse_test_result(
-        #     stdout=stdout,
-        #     stderr=stderr,
-        #     exit_code=exit_code)
         all_tests_passed = test_result_parser.parse_test_result(
             stdout=stdout,
             stderr=stderr,
@@ -905,18 +948,30 @@ def run_tests() -> Dict:
         else:
             clean_stderr = ""
     except subprocess.TimeoutExpired:
-        process.kill()  # Kill the hung process
-        stdout, stderr = process.communicate()  # Get any remaining output
-        clean_stdout = "ERROR: Script execution timed out"
-        clean_stderr = stderr[-500:] if stderr else ""
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        time.sleep(0.5)
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # Process already gone
+        process.wait()
+    except KeyboardInterrupt:
+        os.killpg(os.getpgid(process.pid), signal.SIGTERM)
+        time.sleep(0.5)
+        try:
+            os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+        except ProcessLookupError:
+            pass  # Process already gone
     except Exception as e:
         clean_stdout = ""
         clean_stderr = f"Unexpected error executing script: {str(e)}"
     # Always return the exact same keys so the LLM doesn't get confused
+    if not all_tests_passed:
+        clean_stdout += "\nTime to reflect on why this test run failed. "
+        clean_stdout += "Submitting it again immediately would be useless"
     return {
         'tool_call': 'run_tests()',
-        # 'stdout': clean_stdout,
-        'stdout': stdout,
+        'stdout': clean_stdout + f'\ntest_type: {test_type}',
         'stderr': clean_stderr,
         'exit_code': exit_code,
         'all_tests_passed': all_tests_passed

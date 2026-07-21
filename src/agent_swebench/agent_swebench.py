@@ -54,76 +54,19 @@ class SWEBenchAgent(AbstractAgent):
             max_retries_per_key=3
         )
 
-    # async def get_sandbox_manual(self):
-    #     await self.get_mcp_manual()
-    #     authorized_imports = self.config.authorized_imports
-    #     for item in authorized_imports:
-    #         self.authorized_imports += f"{item}, "
-    #     self.authorized_imports = self.authorized_imports[:-2]
-
-    # async def get_mcp_manual(self):
-    #     client = MCPClient(self.mcp_command, "")
-    #     try:
-    #         await client.connect_server()
-    #     except Exception as e:
-    #         print(e)
-    #         sys.exit(1)
-    #     await client.get_tools()
-    #     self.mcp_manual = client.generate_sandbox_manual()
-    #     # print(f"Manual retrieved:\n{manual}")
-    #     await client.cleanup()
-
-    # def extract_code(self, llm_output: str) -> tuple[str | None, str | None]:
-    #     pattern = r"```(?:python)?\r?\n(.*?)```"
-    #     match = re.search(pattern, llm_output, re.DOTALL)
-    #     if match:
-    #         code = match.group(1)
-    #         code = self.sanitize_code(code)
-    #         truncated_output = llm_output[:match.end(1)]
-    #         return code, truncated_output
-    #     # <tool_call>fn(args)</tool_call>
-    #     pattern = (
-    #         r"<tool_call>\s*"
-    #         r"([a-zA-Z_]\w*\([^)]*\))"
-    #         r"\s*(?:</tool_call>|$)"
-    #     )
-    #     match = re.search(pattern, llm_output, re.DOTALL)
-    #     if match:
-    #         tool_call = match.group(1)
-    #         truncated_output = llm_output[:match.end()]
-    #         return tool_call, truncated_output
-    #     pattern = r"<tool_call>\s*(.*?)\s*</tool_call>"
-    #     match = re.search(pattern, llm_output, re.DOTALL)
-    #     if match:
-    #         content = match.group(1)
-    #         name_match = re.match(r"\s*([a-zA-Z_]\w*)", content)
-    #         if not name_match:
-    #             return None, None
-    #         tool_name = name_match.group(1)
-    #         args = dict(re.findall(
-    #             r"<arg_key>(.*?)</arg_key>\s*<arg_value>(.*?)</arg_value>",
-    #             content,
-    #             re.DOTALL,
-    #         ))
-    #         truncated_output = llm_output[:match.end()]
-    #         parts = []
-    #         for k, v in args.items():
-    #             v = v.strip()
-    #             if not re.fullmatch(r"-?\d+(\.\d+)?|True|False|None", v):
-    #                 v = repr(v)
-    #             parts.append(f"{k}={v}")
-
-    #         tool_call = f"{tool_name}({', '.join(parts)})"
-    #         return tool_call, truncated_output
-    #     return None, None
-
     def build_image(self) -> None:
-        print("building Image...")
         base_image = self.task.docker_image
+        print(f"Pulling image {base_image} ...")
         if not base_image.startswith(("docker.io/", "quay.io/", "ghcr.io/", "gcr.io/")):
             base_image = f"docker.io/{base_image}"
+        pull_result = subprocess.run([
+            "docker", "pull", base_image
+        ], capture_output=True, text=True)
+        if pull_result.returncode != 0:
+            raise RuntimeError(f"Pull failed: {pull_result.stderr}")
         self.image_name = f"swebench_{self.task.instance_id}_{int(time.time())}"
         self.container_name = f"{self.image_name}_container"
+        print(f"Building image {self.image_name} ...")
         build_result = subprocess.run([
             "docker", "build",
             "--build-arg", f"BASE_IMAGE={base_image}",
@@ -143,7 +86,7 @@ class SWEBenchAgent(AbstractAgent):
             # "--network=none",
             "--cap-drop=ALL",
             "--security-opt=no-new-privileges",
-            "--pids-limit=64",
+            "--pids-limit=1024",
             f"--memory={self.config.max_memory_mb}m", "--cpus=1",
             self.image_name,
             "sleep", "infinity"
@@ -151,9 +94,11 @@ class SWEBenchAgent(AbstractAgent):
         subprocess.run(docker_cmd, check=True)
 
     def stop_container(self) -> None:
+        print(f"Stopping container {self.container_name}...")
         if self.container_name:
             subprocess.run(["docker", "rm", "-f", self.container_name],
                            capture_output=True, text=True)
+        print(f"Removing image {self.image_name}...")
         if self.image_name:
             subprocess.run(["docker", "rmi", "-f", self.image_name],
                            capture_output=True, text=True)
@@ -458,3 +403,30 @@ VERY IMPORTANT: Most of the time the fix is just explained here. Read carefully 
             sandbox_output=sandbox_output,
             # prompt=call_metrics.prompt
         )
+
+
+# if __name__ == '__main__':
+#     import json
+#     import asyncio
+#     config = SandboxConfig()
+#     with open('cache/swebench_task.json', 'r') as f:
+#         task_data = json.load(f)
+#     task = SWEBenchTaskInput.model_validate(task_data)
+#     agent = SWEBenchAgent(
+#         provider_model="model_name",
+#         provider_url="provider_url",
+#         max_iterations=15,
+#         config=config,
+#         task=task,
+#         task_type='swebench')
+#     print("Agent created")
+#     print("Fetching sandbox manual...")
+#     asyncio.run(
+#         agent.get_sandbox_manual()
+#     )
+#     code = """
+# result = edit_file("/testbed/django/db/models/fields/related.py", "kwargs['to'] = self.remote_field.model.lower()", "app_label, model_name = self.remote_field.model.split('.'); kwargs['to'] = '%s.%s' % (app_label, model_name.lower())")
+# print(result)
+# run_tests()
+# """
+#     print(agent.sandbox_exec(code))

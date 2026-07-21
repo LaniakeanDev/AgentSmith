@@ -41,6 +41,37 @@ All good!
 
 All Good!?
 
+List:
+    django__django-11066
+    pydata__xarray-4629
+    scikit-learn__scikit-learn-13439
+    sympy__sympy-13480
+    sympy__sympy-18189
+    django__django-11880
+    pydata__xarray-4094
+
+
+| Task | llama-3 | compound | compound-mini | gemma-4-31b | openrouter | gemini | issue |
+|-------|------|--------|------------|--------------|---------------|---------------|---------------|
+|sympy__sympy-14711|✅|✅|✅|✅|✅|||
+|pydata__xarray-4629||||✅||||
+|django__django-11066|✅||✅|✅|✅|||
+|django__django-13112|❌||||||test doesn't fully run|
+|sympy__sympy-18189||||✅||||
+|pydata__xarray-4629||||✅||||
+|sympy__sympy-18189||||✅||||
+|sympy__sympy-13480||||✅||||
+|django__django-11066||||✅||||
+|sympy__sympy-13480||||✅||||
+|scikit-learn__scikit-learn-13439||||||||
+|xxxxxxxxx||||||||
+|xxxxxxxxx||||||||
+|xxxxxxxxx||||||||
+|xxxxxxxxx||||||||
+|xxxxxxxxx||||||||
+|xxxxxxxxx||||||||
+
+
 Agent system descriptions — how do the top-performing systems design their agent loop, tools, and prompts?
 
 

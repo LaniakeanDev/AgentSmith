@@ -10,9 +10,9 @@ mcp = FastMCP("AgentSmith", json_response=True)
 @mcp.tool()
 def run_tests() -> Dict:
     """Execute the tests from the test list"""
-    print("run_tests() executes")
+    # print("run_tests() executes")
     test_list_str = os.environ.get('test_list')
-    code_str = os.environ.get('mbpp_code')
+    code_str = os.environ.get('code')
     code_str = code_str.replace("run_tests()", "")
     if test_list_str is None:
         return {
@@ -22,7 +22,7 @@ def run_tests() -> Dict:
     if code_str is None:
         return {
             "success": False,
-            "error": "mbpp_code environment variable not set"
+            "error": "code environment variable not set"
             }
     test_list = ast.literal_eval(test_list_str)
     namespace = {}
