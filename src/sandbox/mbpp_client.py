@@ -18,7 +18,7 @@ class MCPClient:
         config: SandboxConfig,
         eval_script: str | None = None,
         test_list: List[str] | None = None,
-        mbpp_code: str | None = None
+        code: str | None = None
             ):
         self.task_type = task_type
         self.config = config
@@ -32,7 +32,7 @@ class MCPClient:
         self.messages = ""
         self.eval_script = eval_script
         self.test_list = test_list
-        self.mbpp_code = mbpp_code
+        self.code = code
 
     async def connect_server(self):
         """Connect to the MCP server using stdio_client"""
@@ -62,7 +62,7 @@ class MCPClient:
                 args=args,
                 env={
                         "test_list": str(self.test_list),
-                        "mbpp_code": self.mbpp_code
+                        "code": self.code
                     }
             )
         else:
@@ -75,7 +75,7 @@ class MCPClient:
         #     env["eval_script"] = self.eval_script
         # if self.test_list is not None:
         #     env["test_list"] = str(self.test_list)
-        #     env["mbpp_code"] = self.mbpp_code
+        #     env["code"] = self.code
         # server_params = StdioServerParameters(
         #     command=command,
         #     args=args,

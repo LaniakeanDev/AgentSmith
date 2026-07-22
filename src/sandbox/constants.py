@@ -1,15 +1,14 @@
 
-DEFAULT_SERVER_PATH = 'src/fastmcp_server.py'
 
-DEFAULT_SERVER_NAME_MBPP = 'sandbox_mbpp/mbpp_server.py'
+DEFAULT_SERVER_NAME_MBPP = 'sandbox/mcp_tools_mbpp.py'
 
-DEFAULT_SERVER_NAME_SWEB = 'sandbox/swebench_server.py'
+DEFAULT_SERVER_NAME_SWEB = 'sandbox/mcp_tools_swebench.py'
 
 DEFAULT_MCP_CMD_MBPP = "uv run python " + DEFAULT_SERVER_NAME_MBPP
 
 DEFAULT_MCP_CMD_SWEB = "uv run python " + DEFAULT_SERVER_NAME_SWEB
 
-DEFAULT_MCP_CMD = "uv run python sandbox/fastmcp_server.py"
+DEFAULT_MCP_CMD = "uv run python sandbox/default_server.py"
 
 safe_builtins = {
     # === Type conversion ===

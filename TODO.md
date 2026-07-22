@@ -1,50 +1,83 @@
 
-- clean images when done?
-or have a Makefile rule for it?
+
+
+# General
+
+- Your project must follow clean software architecture principles.
+- All errors must be handled gracefully
+- Your code must be readable, structured, and documented.
+
+## Makefile
+
+- clean or fclean removes containers
+
+
+# Agentic Framework
+
+- Implement a Thought → Code → Observation loop
+- Your sandbox must provide explicit feedback to the LLM in all of these situations:
+    - No valid code block was found in the model’s response
+    - A code block was malformed but was interpreted anyway (explain how)
+    - Execution hit the timeout and output is partial
+    - Tool output was truncated due to size limits
+    - An edit introduced a syntax error or lint violation
+
+
+
+# Sandbox
+
+
+## Misc
+
+- The MCP tool files (mcp_tools_mbpp.py, mcp_tools_swebench.py) should be located at the root of your repository
 
 
 # MBPP
 
-## Sandbox
-
-?Remove the Docker and use a simple subprocess
-
-Retry logic, provider shift logic
-
-### sandbox CLI usage
-```bash
-# With MBPP tools (HTTP)
-uv run sandbox --mcp-server <URL>
-```
-
-### sandbox manual
-
-Generate a sandbox manual to be fed to the LLM prompt, which must include the MCP
-tools doc, or how to access it.
-
-The sandbox manual should be dynamically generated from the connected
-MCP server’s tool schemas — tool names, descriptions, and parameter types.
-When a different MCP server is connected, the manual should automatically
-reflect that server’s tools.
-The manual is what the LLM reads to understand what tools are available
-and how to call them.
+All good!
 
 
+# SWEBench
 
-## MBPP
+All Good!?
 
-### agent CLI interface
-```bash
-# 1. Dump a task
-cd moulinette
-uv run moulinette_eval dump mbpp --output ../cache/mbpp_task.json
-# 2. Run your agent
-cd ../student
-uv run python -m agent_mbpp --task-file ../cache/mbpp_task.json \
---output ../cache/mbpp_solution.json \
---model-name "model/name" --provider-url "https://provider.api/v1"
-# 3. Validate solution
-cd ../moulinette
-uv run moulinette_eval validate mbpp ../cache/mbpp_task.json \
-../cache/mbpp_solution.json
-```
+List:
+    django__django-11066
+    pydata__xarray-4629
+    scikit-learn__scikit-learn-13439
+    sympy__sympy-13480
+    sympy__sympy-18189
+    django__django-11880
+    pydata__xarray-4094
+
+
+| Task | llama-3 | compound | compound-mini | gemma-4-31b | openrouter | gemini | issue |
+|-------|------|--------|------------|--------------|---------------|---------------|---------------|
+|sympy__sympy-14711|✅|✅|✅|✅|✅|||
+|pydata__xarray-4629||||✅||||
+|django__django-11066|✅||✅|✅|✅|||
+|django__django-13112|❌||||||test doesn't fully run|
+|sympy__sympy-18189||||✅||||
+|pydata__xarray-4629||||✅||||
+|sympy__sympy-18189||||✅||||
+|sympy__sympy-13480||||✅||||
+|django__django-11066||||✅||||
+|sympy__sympy-13480||||✅||||
+|scikit-learn__scikit-learn-13439||||✅||||
+|xxxxxxxxx||||||||
+|xxxxxxxxx||||||||
+|xxxxxxxxx||||||||
+|xxxxxxxxx||||||||
+|xxxxxxxxx||||||||
+|xxxxxxxxx||||||||
+
+
+15 to 60
+sympy__sympy-18189 ✅
+
+
+Agent system descriptions — how do the top-performing systems design their agent loop, tools, and prompts?
+
+
+
+

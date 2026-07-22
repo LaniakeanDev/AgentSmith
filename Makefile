@@ -1,4 +1,14 @@
 
+socket:
+	systemctl --user start podman.socket && \
+	podman system service --time=0
+
+
+SANDBOX_TEMPLATE ?= 
+
+sandbox:
+	uv run sandbox $(SANDBOX_TEMPLATE)
+
 
 run-mbpp:
 	uv run python -m agent_mbpp --task-file cache/mbpp_task.json \
@@ -10,7 +20,7 @@ run-mbpp:
 dump-swe:
 	(cd moulinette && uv run moulinette_eval dump swebench --output ../cache/swebench_task.json)
 
-dump-swe-task-%:
+dump-swe-%:
 	(cd moulinette && uv run moulinette_eval dump swebench --task-id $* --output ../cache/swebench_task.json)
 
 run-swe:
@@ -23,6 +33,10 @@ install_docker_sandbox:
 	uv lock && \
 	cd ../.. && \
 	docker build -t sandbox-image src/sandbox
+
+clean:
+	docker system prune -a
+
 
 # install_docker_sandbox_mbpp:
 # 	cd src/sandbox && \

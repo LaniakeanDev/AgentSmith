@@ -17,9 +17,9 @@ from .mcp_client import MCPClient
 
 
 class Sandbox:
-    def __init__(self):
+    def __init__(self, input_data: str | None = None):
         self.output = ""
-        input_data = sys.stdin.read()
+        input_data = input_data if input_data is not None else sys.stdin.read()
         try:
             inputs = json.loads(input_data)
             self.config = SandboxConfig.model_validate(inputs["config"])
@@ -43,10 +43,10 @@ class Sandbox:
                 self.test_list = None
             self.mcp_client = MCPClient(
                 task_type=task_type,
-                mcp_cmd=self.config.mcp_command,
+                config=self.config,
                 eval_script=self.eval_script,
                 test_list=self.test_list,
-                mbpp_code=self.code
+                code=self.code
                 )
             self.loop = asyncio.new_event_loop()
             asyncio.set_event_loop(self.loop)
@@ -191,3 +191,22 @@ class Sandbox:
 if __name__ == '__main__':
     sandbox = Sandbox()
     sandbox.execute()
+
+# if __name__ == '__main__':
+#     config = SandboxConfig()
+#     conf_dict = config.model_dump()
+#     code = """
+# result = edit_file("/testbed/django/db/models/fields/related.py", "kwargs['to'] = self.remote_field.model.lower()", "app_label, model_name = self.remote_field.model.split('.'); kwargs['to'] = '%s.%s' % (app_label, model_name.lower())")
+# print(result)
+# run_tests()
+# """
+#     print(f"code:\n{code}")
+#     eval_script = "#!/bin/bash\nset -uxo pipefail\nsource /opt/miniconda3/bin/activate\nconda activate testbed\ncd /testbed\nsed -i '/en_US.UTF-8/s/^# //g' /etc/locale.gen && locale-gen\nexport LANG=en_US.UTF-8\nexport LANGUAGE=en_US:en\nexport LC_ALL=en_US.UTF-8\ngit config --global --add safe.directory /testbed\ncd /testbed\ngit status\ngit show\ngit -c core.fileMode=false diff 09914ccf688974e068941f55412b930729bafa06\nsource /opt/miniconda3/bin/activate\nconda activate testbed\npython -m pip install -e .\ngit checkout 09914ccf688974e068941f55412b930729bafa06 tests/migrations/test_state.py\ngit apply -v - <<'EOF_114329324912'\ndiff --git a/tests/migrations/test_state.py b/tests/migrations/test_state.py\n--- a/tests/migrations/test_state.py\n+++ b/tests/migrations/test_state.py\n@@ -867,6 +867,34 @@ class Meta:\n         with self.assertRaisesMessage(ValueError, msg):\n             project_state.apps\n \n+    def test_reference_mixed_case_app_label(self):\n+        new_apps = Apps()\n+\n+        class Author(models.Model):\n+            class Meta:\n+                app_label = 'MiXedCase_migrations'\n+                apps = new_apps\n+\n+        class Book(models.Model):\n+            author = models.ForeignKey(Author, models.CASCADE)\n+\n+            class Meta:\n+                app_label = 'MiXedCase_migrations'\n+                apps = new_apps\n+\n+        class Magazine(models.Model):\n+            authors = models.ManyToManyField(Author)\n+\n+            class Meta:\n+                app_label = 'MiXedCase_migrations'\n+                apps = new_apps\n+\n+        project_state = ProjectState()\n+        project_state.add_model(ModelState.from_model(Author))\n+        project_state.add_model(ModelState.from_model(Book))\n+        project_state.add_model(ModelState.from_model(Magazine))\n+        self.assertEqual(len(project_state.apps.get_models()), 3)\n+\n     def test_real_apps(self):\n         \"\"\"\n         Including real apps can resolve dangling FK errors.\n\nEOF_114329324912\n: '>>>>> Start Test Output'\n./tests/runtests.py --verbosity 2 --settings=test_sqlite --parallel 1 migrations.test_state\n: '>>>>> End Test Output'\ngit checkout 09914ccf688974e068941f55412b930729bafa06 tests/migrations/test_state.py\n"
+#     inputs = {
+#         "config": conf_dict,
+#         "task_type": "swebench",
+#         "code": code,
+#         "eval_script": eval_script
+#     }
+#     sandbox = Sandbox(json.dumps(inputs))
+#     sandbox.execute()

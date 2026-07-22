@@ -146,7 +146,7 @@ class InteractSweBench:
     def list_instances(
         self,
         repo_pattern: str = "sympy|requests|django|scikit-learn|pydata",
-        difficulty: Union[str, List[str], Difficulty, List[Difficulty]] = Difficulty.LESS_THAN_15_MIN,
+        difficulty: Union[str, List[str], Difficulty, List[Difficulty]] = Difficulty.HOURS_1_TO_4,
         dataset: str = DEFAULT_DATASET,
         split: str = DEFAULT_SPLIT,
         sort_by_patch_length: bool = False,

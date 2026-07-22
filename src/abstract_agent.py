@@ -1,24 +1,10 @@
-# import re
-# import sys
-# from typing import List
-# from agent_mbpp.mbpp_models import (
-#     CallMetrics, MBPPTaskInput, SolutionOutput, StepMetrics)
-# import requests
-# import time
-# import os
 import sys
-
+import ast
 from dotenv import load_dotenv
-# from models import CallMetrics
-# from sandbox.sandbox_models import ExecutionResult, SandboxConfig
-# from sandbox.spawner import Spawner
-# from groq import Groq
-# from groq import Groq
-# from cerebras.cloud.sdk import Cerebras
-# from google import genai
 from sandbox.mcp_client import MCPClient
 import re
-from constants import PROVIDERS_KEY_CONST_MAP
+from constants import DEFAULT_PROVIDER_MODEL, PROVIDERS_KEY_CONST_MAP
+from sandbox.sandbox_models import SandboxConfig
 
 load_dotenv()
 
@@ -29,23 +15,26 @@ class AbstractAgent:
             task_type: str,
             provider_model: str,
             provider_url: str,
-            max_iterations: int
+            max_iterations: int,
+            config: SandboxConfig,
             ) -> None:
+        self.config = config
         self.task_type = task_type
         self.provider_url = provider_url
         split_provider_model = provider_model.split('/')
         if len(split_provider_model) != 2 or split_provider_model[0] \
                 not in PROVIDERS_KEY_CONST_MAP:
             print(f"WARNING: Provider/model invalid: {provider_model}")
-            self.provider = "groq"
+            self.provider = DEFAULT_PROVIDER_MODEL.split('/')[0]
             print(f"Switching to {self.provider} instead")
-            self.model_name = PROVIDERS_KEY_CONST_MAP[self.provider]["model"]
+            idx = DEFAULT_PROVIDER_MODEL.find('/')
+            self.model_name = DEFAULT_PROVIDER_MODEL[idx + 1:]
             self.provider_url = PROVIDERS_KEY_CONST_MAP[self.provider]["url"]
         else:
             self.provider = split_provider_model[0].lower()
             self.model_name = split_provider_model[1]
         self.key_name = PROVIDERS_KEY_CONST_MAP[self.provider]["key_name"]
-        self.provider_model = PROVIDERS_KEY_CONST_MAP[self.provider]["model"]
+        # self.provider_model = PROVIDERS_KEY_CONST_MAP[self.provider]["model"]
         self.max_iterations = max_iterations
         self.max_retries = 3
 
@@ -59,7 +48,7 @@ class AbstractAgent:
     async def get_mcp_manual(self):
         client = MCPClient(
             task_type=self.task_type,
-            mcp_cmd=self.mcp_command
+            config=self.config
         )
         try:
             await client.connect_server()
@@ -72,11 +61,13 @@ class AbstractAgent:
         await client.cleanup()
 
     def extract_code(self, llm_output: str) -> tuple[str | None, str | None]:
-        pattern = r"```(?:python)?\r?\n(.*?)```"
+        pattern = r"```(?:python)?\s*\n(.*?)```"
         match = re.search(pattern, llm_output, re.DOTALL)
         if match:
             code = match.group(1)
             code = self.sanitize_code(code)
+            if code == "No code could be extracted" or code == '\n':
+                return None, None
             truncated_output = llm_output[:match.end(1)]
             return code, truncated_output
         # <tool_call>fn(args)</tool_call>
@@ -115,6 +106,13 @@ class AbstractAgent:
             return tool_call, truncated_output
         return None, None
 
+    # def is_valid_python(self, code_string):
+    #     try:
+    #         ast.parse(code_string)
+    #         return True
+    #     except SyntaxError:
+    #         return False
+
     def sanitize_code(self, code: str) -> str:
         """Replace problematic Unicode characters with ASCII equivalents."""
         replacements = {
@@ -129,7 +127,24 @@ class AbstractAgent:
         }
         for unicode_char, ascii_char in replacements.items():
             code = code.replace(unicode_char, ascii_char)
-        return code
+        try:
+            ast.parse(code)
+            return code
+        except SyntaxError as e:
+            lines = code.split('\n')
+            if e.lineno:
+                valid_lines = lines[:e.lineno - 1]
+                if valid_lines:
+                    return '\n'.join(valid_lines)
+            while len(lines) > 0:
+                try:
+                    lines.pop()
+                    partial_code = '\n'.join(lines)
+                    ast.parse(partial_code)
+                    return partial_code
+                except SyntaxError:
+                    continue
+        return "No code could be extracted"
 
     def get_new_prompt(
             self,

@@ -1,12 +1,11 @@
 import subprocess
 import sys
-import re
 import time
 from typing import List
 from abstract_agent import AbstractAgent
+from sandbox.constants import DEFAULT_MCP_CMD_SWEB
 from sandbox.spawner import Spawner
 from models import CallMetrics
-from sandbox.mcp_client import MCPClient
 from sandbox.sandbox_models import ExecutionResult, SandboxConfig
 from .swebench_models import StepMetrics, SWEBenchTaskInput, SolutionOutput
 from llm_caller import LLMCaller
@@ -29,18 +28,18 @@ class SWEBenchAgent(AbstractAgent):
             config: SandboxConfig,
             task: SWEBenchTaskInput,
             mcp_command: str | None = None):
-        super().__init__(task_type, provider_model, provider_url, max_iterations)
+        super().__init__(
+            task_type, provider_model, provider_url, max_iterations, config)
         self.task = task
         self.mcp_manual: str | None = None
         self.authorized_imports = ""
-        self.config = config
         self.og_prompt = ""
         self.prompt_ext = ""
         self.image_name: str | None = None
         self.container_name: str | None = None
         self.iteration = 0
         if mcp_command is None:
-            self.mcp_command = "uv run python sandbox/swebench_server.py"
+            self.mcp_command = DEFAULT_MCP_CMD_SWEB
         else:
             self.mcp_command = mcp_command
         self.spawner = Spawner(
@@ -50,80 +49,26 @@ class SWEBenchAgent(AbstractAgent):
         )
         self.all_tests_passed = False
         self.caller = LLMCaller(
-            provider="groq",
+            provider=self.provider,
+            model=self.model_name,
             max_retries_per_key=3
-            )
-
-    # async def get_sandbox_manual(self):
-    #     await self.get_mcp_manual()
-    #     authorized_imports = self.config.authorized_imports
-    #     for item in authorized_imports:
-    #         self.authorized_imports += f"{item}, "
-    #     self.authorized_imports = self.authorized_imports[:-2]
-
-    # async def get_mcp_manual(self):
-    #     client = MCPClient(self.mcp_command, "")
-    #     try:
-    #         await client.connect_server()
-    #     except Exception as e:
-    #         print(e)
-    #         sys.exit(1)
-    #     await client.get_tools()
-    #     self.mcp_manual = client.generate_sandbox_manual()
-    #     # print(f"Manual retrieved:\n{manual}")
-    #     await client.cleanup()
-
-    # def extract_code(self, llm_output: str) -> tuple[str | None, str | None]:
-    #     pattern = r"```(?:python)?\r?\n(.*?)```"
-    #     match = re.search(pattern, llm_output, re.DOTALL)
-    #     if match:
-    #         code = match.group(1)
-    #         code = self.sanitize_code(code)
-    #         truncated_output = llm_output[:match.end(1)]
-    #         return code, truncated_output
-    #     # <tool_call>fn(args)</tool_call>
-    #     pattern = (
-    #         r"<tool_call>\s*"
-    #         r"([a-zA-Z_]\w*\([^)]*\))"
-    #         r"\s*(?:</tool_call>|$)"
-    #     )
-    #     match = re.search(pattern, llm_output, re.DOTALL)
-    #     if match:
-    #         tool_call = match.group(1)
-    #         truncated_output = llm_output[:match.end()]
-    #         return tool_call, truncated_output
-    #     pattern = r"<tool_call>\s*(.*?)\s*</tool_call>"
-    #     match = re.search(pattern, llm_output, re.DOTALL)
-    #     if match:
-    #         content = match.group(1)
-    #         name_match = re.match(r"\s*([a-zA-Z_]\w*)", content)
-    #         if not name_match:
-    #             return None, None
-    #         tool_name = name_match.group(1)
-    #         args = dict(re.findall(
-    #             r"<arg_key>(.*?)</arg_key>\s*<arg_value>(.*?)</arg_value>",
-    #             content,
-    #             re.DOTALL,
-    #         ))
-    #         truncated_output = llm_output[:match.end()]
-    #         parts = []
-    #         for k, v in args.items():
-    #             v = v.strip()
-    #             if not re.fullmatch(r"-?\d+(\.\d+)?|True|False|None", v):
-    #                 v = repr(v)
-    #             parts.append(f"{k}={v}")
-
-    #         tool_call = f"{tool_name}({', '.join(parts)})"
-    #         return tool_call, truncated_output
-    #     return None, None
+        )
 
     def build_image(self) -> None:
-        print("building Image...")
         base_image = self.task.docker_image
+        print(f"Pulling image {base_image} ...")
+        if not base_image.startswith(("docker.io/", "quay.io/", "ghcr.io/", "gcr.io/")):
+            base_image = f"docker.io/{base_image}"
+        pull_result = subprocess.run([
+            "docker", "pull", base_image
+        ], capture_output=True, text=True)
+        if pull_result.returncode != 0:
+            raise RuntimeError(f"Pull failed: {pull_result.stderr}")
         if not base_image.startswith(("docker.io/", "quay.io/", "ghcr.io/", "gcr.io/")):
             base_image = f"docker.io/{base_image}"
         self.image_name = f"swebench_{self.task.instance_id}_{int(time.time())}"
         self.container_name = f"{self.image_name}_container"
+        print(f"Building image {self.image_name} ...")
         build_result = subprocess.run([
             "docker", "build",
             "--build-arg", f"BASE_IMAGE={base_image}",
@@ -140,9 +85,10 @@ class SWEBenchAgent(AbstractAgent):
         docker_cmd = [
             "docker", "run", "-d",  # detached, long-lived
             "--name", self.container_name,
-            "--network=none", "--cap-drop=ALL",
+            # "--network=none",
+            "--cap-drop=ALL",
             "--security-opt=no-new-privileges",
-            "--pids-limit=64",
+            "--pids-limit=1024",
             f"--memory={self.config.max_memory_mb}m", "--cpus=1",
             self.image_name,
             "sleep", "infinity"
@@ -150,9 +96,11 @@ class SWEBenchAgent(AbstractAgent):
         subprocess.run(docker_cmd, check=True)
 
     def stop_container(self) -> None:
+        print(f"Stopping container {self.container_name}...")
         if self.container_name:
             subprocess.run(["docker", "rm", "-f", self.container_name],
                            capture_output=True, text=True)
+        print(f"Removing image {self.image_name}...")
         if self.image_name:
             subprocess.run(["docker", "rmi", "-f", self.image_name],
                            capture_output=True, text=True)
@@ -251,6 +199,9 @@ class SWEBenchAgent(AbstractAgent):
             self.step_metrics_list.append(step_metrics)
             while result.final_answer is None and \
                     self.iteration < self.max_iterations:
+                # import pprint
+                # pprint.pprint(result)
+                # print(f"\n\nAgent:253: {result.output}\n\n\n\n")
                 exec_output = remove_repeated_lines(result.output)
                 if result.success:
                     message = f"Execution completed:"\
@@ -357,6 +308,25 @@ class SWEBenchAgent(AbstractAgent):
                     total_time_seconds=task_duration,
                     steps=self.step_metrics_list,
                 )
+        except KeyboardInterrupt:
+            print("\n\n👋 Interrupted. Exiting...")
+            task_duration = time.time() - self.task_start
+            return SolutionOutput(
+                task_id=str(self.task.instance_id),
+                benchmark="swebench",
+                success=False,
+                solution="Solution seeking interrupted",
+                system_prompt=prompt,
+                iterations=self.iteration,
+                total_requests=sum(
+                    met.retries + 1 for met in self.step_metrics_list),
+                total_input_tokens=sum(
+                    met.input_tokens for met in self.step_metrics_list),
+                total_output_tokens=sum(
+                    met.output_tokens for met in self.step_metrics_list),
+                total_time_seconds=task_duration,
+                steps=self.step_metrics_list,
+            )
         finally:
             self.stop_container()
 
@@ -365,10 +335,12 @@ class SWEBenchAgent(AbstractAgent):
 Fix a bug in /testbed. The functions below are PRE-LOADED—call them directly.
 Do NOT import the library you are fixing. Do NOT define functions with def.
 Files are in /testbed. Use search_code to find exact paths—do not guess.
-The Evaluation Script shows how your fix will be tested. Do NOT run it yourself.
+The Evaluation Script shows how your fix will be tested.
+Do NOT run it yourself.
 When using edit_file, match the exact indentation of old_str in new_str.
 When editing, include enough context in old_str to match only ONE location.
-Once print(run_tests()) indicates success, call final_answer(get_patch()) immediately.
+Once print(run_tests()) indicates success,
+call final_answer(get_patch()) immediately.
 Check for commented-out fixes in the traceback.
 Output only one code block per response.
 Never write edit_file, run_tests, or final_answer calls based on an assumed
@@ -376,27 +348,29 @@ or guessed prior result. Only reference a file's exact content, path, or line
 number after you have seen it in a tool's actual printed output in a previous
 turn. Submit one tool call's result before writing code that depends on it.
 final_answer(get_patch()) is only valid immediately after run_tests() has
-printed "all_tests_passed": True in this same session — never call it otherwise.
+printed "all_tests_passed": True. Never call it otherwise.
 
 {self.mcp_manual}
 
-Format:
-Thought: [reasoning]
+## Output Format (strictly adhere to it)
+
+Thought: [reasoning for 128 tokens max]
 Code:
 ```python
 result = tool_name(arg1="val1")
 print(result)
 ```
 
-After verifying your solution (next iteration):
-final_answer(patch) must be called alone
+After verifying your solution:
+final_answer(get_patch()) must be called alone
 
 ## Task
 ### Problem Statement
 {self.task.problem_statement}
 
 ### Hints
-VERY IMPORTANT: Most of the time the fix is just explained here. Read carefully and follow the hints.
+VERY IMPORTANT: Most of the time the fix is just explained here.
+Read carefully and follow the hints.
 {self.task.hints_text}
 
 ### Evaluation Script
@@ -432,5 +406,32 @@ VERY IMPORTANT: Most of the time the fix is just explained here. Read carefully 
             retries=call_metrics.retries,
             sandbox_input=code,
             sandbox_output=sandbox_output,
-            prompt=call_metrics.prompt
+            # prompt=call_metrics.prompt
         )
+
+
+# if __name__ == '__main__':
+#     import json
+#     import asyncio
+#     config = SandboxConfig()
+#     with open('cache/swebench_task.json', 'r') as f:
+#         task_data = json.load(f)
+#     task = SWEBenchTaskInput.model_validate(task_data)
+#     agent = SWEBenchAgent(
+#         provider_model="model_name",
+#         provider_url="provider_url",
+#         max_iterations=15,
+#         config=config,
+#         task=task,
+#         task_type='swebench')
+#     print("Agent created")
+#     print("Fetching sandbox manual...")
+#     asyncio.run(
+#         agent.get_sandbox_manual()
+#     )
+#     code = """
+# result = edit_file("/testbed/django/db/models/fields/related.py", "kwargs['to'] = self.remote_field.model.lower()", "app_label, model_name = self.remote_field.model.split('.'); kwargs['to'] = '%s.%s' % (app_label, model_name.lower())")
+# print(result)
+# run_tests()
+# """
+#     print(agent.sandbox_exec(code))

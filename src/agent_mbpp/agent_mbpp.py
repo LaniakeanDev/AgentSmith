@@ -1,19 +1,16 @@
 import json
-import re
 import subprocess
 import sys
 from typing import List
 from agent_mbpp.mbpp_models import (
     MBPPTaskInput, SolutionOutput, StepMetrics)
+from sandbox.constants import DEFAULT_MCP_CMD_MBPP
 from src.abstract_agent import AbstractAgent
 from src.llm_caller import LLMCaller
 from ..models import CallMetrics
 import time
-# from dotenv import load_dotenv
 from sandbox.sandbox_models import ExecutionResult, SandboxConfig
 from sandbox.spawner import Spawner
-
-# load_dotenv()
 
 
 class MBPPAgent(AbstractAgent):
@@ -26,19 +23,19 @@ class MBPPAgent(AbstractAgent):
             config: SandboxConfig,
             task: MBPPTaskInput,
             mcp_command: str | None = None) -> None:
-        super().__init__(task_type, provider_model, provider_url, max_iterations)
+        super().__init__(
+            task_type, provider_model, provider_url, max_iterations, config)
         self.task = task
         self.mcp_manual: str | None = None
         self.authorized_imports = ""
-        self.config = config
         self.og_prompt = ""
         self.prompt_ext = ""
         self.image_name = "sandbox-image"
         self.container_name = f"{self.image_name}_container"
-        self.stop_container()
+        self.remove_image()
         self.iteration = 0
         if mcp_command is None:
-            self.mcp_command = "uv run python sandbox/mbpp_server.py"
+            self.mcp_command = DEFAULT_MCP_CMD_MBPP
         else:
             self.mcp_command = mcp_command
         self.spawner = Spawner(
@@ -49,20 +46,10 @@ class MBPPAgent(AbstractAgent):
         self.all_tests_passed = False
         self.solution = ""
         self.caller = LLMCaller(
-            provider="groq",
+            provider=self.provider,
+            model=self.model_name,
             max_retries_per_key=3
             )
-        # split_provider_model = provider_model.split('/')
-        # if len(split_provider_model) != 2 or split_provider_model[0] \
-        #         not in PROVIDERS:
-        #     print(f"WARNING: Provider/model invalid: {provider_model}")
-        #     print("Switching to Groq/llama-3.3-70b-versatile instead")
-        #     self.provider, self.model_name = "groq", "llama-3.3-70b-versatile"
-        # else:
-        #     self.provider = split_provider_model[0].lower()
-        #     self.model_name = split_provider_model[1]
-        # self.provider_url = provider_url
-        # self.max_iterations = max_iterations
 
     def sanitize_code(self, code: str) -> str:
         """Replace problematic Unicode characters with ASCII equivalents."""
@@ -150,11 +137,11 @@ class MBPPAgent(AbstractAgent):
         # else:
         #     print(f"Using pre-built container: {self.image_name}")
 
-    def stop_container(self) -> None:
-        print("Stopping container...")
-        if self.container_name:
-            subprocess.run(["docker", "rm", "-f", self.container_name],
-                           capture_output=True, text=True)
+    def remove_image(self) -> None:
+        # print("Stopping container...")
+        # if self.container_name:
+        #     subprocess.run(["docker", "rm", "-f", self.container_name],
+        #                    capture_output=True, text=True)
         print("Removing image...")
         if self.image_name:
             subprocess.run(["docker", "rmi", "-f", self.image_name],
@@ -172,9 +159,12 @@ class MBPPAgent(AbstractAgent):
                 code=extracted_code,
                 docker_cmd=exec_cmd,
             )
+        except KeyboardInterrupt:
+            print("\n\n👋 Interrupted. Exiting...")
+            sys.exit(0)
         except Exception as e:
-            print(f"Agent.sandbox_exec: {type(e).__name__}: {str(e)}")
-            raise
+            print(f"Agent: {type(e).__name__}: {str(e)}")
+            sys.exit(0)
 
     def get_prompt(self):
         prompt = f"# MCP manual\n{self.mcp_manual}\n"
@@ -375,7 +365,7 @@ class MBPPAgent(AbstractAgent):
         except Exception as e:
             print(f"Agent: {type(e).__name__}: {str(e)}")
         finally:
-            self.stop_container()
+            self.remove_image()
 
     def get_step_metrics(
             self,
