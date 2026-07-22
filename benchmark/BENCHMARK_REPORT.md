@@ -22,6 +22,8 @@
 - **Diversity**: Mix of difficulty levels (easy/medium)
 - **Coverage**: Different frameworks
 
+Note: sympy__sympy-18189 is the medium level task
+
 ### Configuration
 - **Agent version**: v1.0.0
 - **Max iterations**: 30
@@ -38,7 +40,7 @@
 |-------|------|--------|------------|--------------|---------------|---------------|
 | **llama-3.3-70b-versatile** | pydata__xarray-4629 | ✅ PASS | 4 | 11,701 | 246 | 12 |
 | | django__django-11066 | ✅ PASS | 3 | 9,823 | 208 | 10 |
-| | sympy__sympy-18189 | ❌ FAIL | 12 | 51,649 | 812 | 155 |
+| | sympy__sympy-18189 | ✅ PASS | 6 | 20,942 | 392 | 49 |
 | **openrouter/free** | pydata__xarray-4629 | ✅ PASS | 15 | 49,941 | 2,012 | 231 |
 | | django__django-11066 | ✅ PASS | 9 | 17,759 | 530 | 54 |
 | | sympy__sympy-18189 | ❌ FAIL | 10 | 30,862 | 2712 | 317 |
@@ -52,6 +54,13 @@
 | | django__django-11066 | ❌ FAIL | 11 | 51,240 | 684 | 31 |
 | | sympy__sympy-18189 | ✅ PASS | 6 | 20,251 | 277 | 34 |
 
+### **Analysis**
+
+- Best Overall Model: gemma-4-31b achieved a perfect 3/3 success rate with the most balanced performance—fast execution (15-44s), moderate token usage (19k-30k input tokens), and low iterations (5-6 per task).
+- Highest Efficiency: llama-3.3-70b-versatile solved 3/3 tasks with exceptional efficiency—fewest iterations (3-6), lowest token consumption (9.8k-20.9k input), and fastest wall times (10-49s). The model demonstrates superior reasoning efficiency and is ideal for cost-sensitive deployments.
+- Most Prolific but Inconsistent: openrouter/free attempted the most iterations (9-15) and consumed the most tokens (17.7k-49.9k input) but failed on sympy__sympy-18189, suggesting poor reasoning efficiency or struggles with complex tasks.
+- Surprise Contender: qwen3.6-27b achieved 3/3 success with moderate performance across all metrics, outperforming more established models on the difficult sympy task where openrouter/free failed.
+- Mixed Performer: gemini-3.1-flash-lite failed on django__django-11066 despite being the fastest model for xarray and sympy tasks (29-34s), indicating potential weaknesses in certain problem domains.
 ---
 
 ## 3. Provider Reliability
@@ -65,13 +74,6 @@
 | **Openrouter** | openrouter/free | 7121 | 0.7 | Average |
 | **Groq** | qwen3.6-27b | 586 | 0.1 | Good |
 | **Gemini** | gemini-3.1-flash-lite | 959 | 0.3 | Poor |
-
-### Reliability Analysis
-
-- **Provider Y** and **Provider Z** demonstrated highest reliability (100% and 99.5% availability)
-- **Provider W** required most retries (5) and had highest latency (2.1s avg)
-- **Provider X** showed inconsistent performance between their two models
-- Rate limits only affected Provider X and Provider W during peak usage
 
 ---
 
@@ -110,106 +112,63 @@
 ## 5. Ablation Study
 
 ### Study Design
-Comparing **qwen3.6-27b** performance with and without the `fileMode=false` configuration on the same 3 tasks.
+Comparing **llama-3.3-70b-versatile**'s performance with and without the following paragraph in the prompt:
+```
+Never write edit_file, run_tests, or final_answer calls based on an assumed
+or guessed prior result. Only reference a file's exact content, path, or line
+number after you have seen it in a tool's actual printed output in a previous
+turn. Submit one tool call's result before writing code that depends on it.
+final_answer(get_patch()) is only valid immediately after run_tests() has
+printed "all_tests_passed": True in this same session — never call it otherwise.
+```
 
 ### Configuration
 | Variant | Description |
 |---------|-------------|
-| **Baseline** | Standard git diff without file mode filtering |
-| **Ablation** | With `git -c core.fileMode=false diff` |
+| **Baseline** | Standard with the paragraph |
+| **Ablation** | Without the paragraph |
 
 ### Results
 
 | Task | Baseline | Ablation | Improvement |
 |------|----------|----------|-------------|
-| pydata__xarray-4629 | ✅ PASS (2 iter) | ✅ PASS (2 iter) | 0% |
-| django__django-11066 | ✅ PASS (4 iter) | ✅ PASS (3 iter) | -25% iterations |
-| sympy__sympy-18189 | ✅ PASS (6 iter) | ✅ PASS (5 iter) | -17% iterations |
-| **Total Input Tokens** | 44,400 | 38,200 | **-14%** |
-| **Total Output Tokens** | 16,400 | 14,100 | **-14%** |
-
-### Analysis
-
-**Why did fileMode=false help?**
-- Reduces noise from permission changes in git diff output
-- Agent spends less time processing irrelevant file mode changes
-- Cleaner context leads to more focused edits
-
-**Impact:**
-- 14% token savings on average
-- 1 fewer iteration on 2 of 3 tasks
-- No negative impact on correctness
-- **Recommendation**: Apply to all future runs
+| pydata__xarray-4629 | ✅ PASS (4 iter) | ❌ FAIL (1 iter) | FAIL > PASS |
+| django__django-11066 | ✅ PASS (3 iter) | ✅ PASS (1 iter) | Faster but reckless (submits final answer without checking run_tests()'s result) |
+| sympy__sympy-18189 | ✅ PASS (6 iter) | ❌ FAIL (9 iter) | FAIL > PASS |
 
 ---
 
 ## 6. Conclusions
 
-### Recommended Model: **qwen3.6-27b** (Provider Z)
+### Recommended Model: **gemma-4-31b** (Cerebras)
 
 **Justification:**
-1. **Highest solve rate**: 100% (tied with openrouter/free)
-2. **Most efficient**: Lowest token usage (14,800 avg input, 5,467 avg output)
-3. **Fastest**: Best wall-clock time (65s avg)
+1. **Highest solve rate**: 100%
+2. **Average efficiency**: Average token usage (26k avg input, 693 avg output)
+3. **Fastest**: Best wall-clock time (24s avg)
 4. **Best exploration**: Locates relevant files earliest (avg step 2)
 5. **Best discipline**: Almost zero extra iterations after tests pass
-6. **Cost-effective**: ~40% cheaper than gemini-3.1-flash-lite, ~30% cheaper than openrouter/free
+6. **Cost-effective**: Up to a million tokens per key per day
 
 ### Models to Disregard
 
 | Model | Reason |
 |-------|--------|
-| **gemma-4-31b** | Lowest solve rate (33%), highest retries (8), poor exploration, unreliable provider |
-| **gemini-3.1-flash-lite** | Highest cost (most tokens), slowest, poor discipline, unreliable provider |
-| **llama-3.3-70b-versatile** | Only 66% solve rate, moderate performance but outclassed by C |
+| **openrouter/free** | Unreliable provider: a lot of wasted iterations with poor models |
+| **gemini-3.1-flash-lite** | Unreliable provider |
 
-### Secondary Recommendation: **openrouter/free** (Provider Y)
+### Secondary Recommendation: **qwen3.6-27b** (Groq)
 
 **Justification:**
 - 100% solve rate with excellent reliability (100% availability)
-- Good fallback option if qwen3.6-27b becomes unavailable
-- Slightly more expensive but still acceptable
+- Good fallback option if gemma-4-31b becomes unavailable
+- Slower to respond, but still available
 
 ### Final Pipeline Configuration
 
 ```yaml
-primary_model: qwen3.6-27b
-fallback_model: openrouter/free
-git_config: core.fileMode=false
-max_iterations: 8
-temperature: 0.2
+primary_model: gemma-4-31b
+fallback_models:
+    qwen3.6-27b
+    llama-3.3-70b-versatile
 ```
-
-### Cost-Benefit Analysis
-
-| Model | Cost per Task | Solve Rate | Cost per Successful Task |
-|-------|---------------|------------|--------------------------|
-| qwen3.6-27b | $1.20 | 100% | $1.20 |
-| openrouter/free | $1.85 | 100% | $1.85 |
-| llama-3.3-70b-versatile | $1.65 | 66.7% | $2.48 |
-| gemini-3.1-flash-lite | $2.80 | 66.7% | $4.20 |
-| gemma-4-31b | $2.10 | 33.3% | $6.30 |
-
-**qwen3.6-27b provides the best value: lowest cost per successful task.**
-
----
-
-## Appendix: Raw Data
-
-*[Link to solution.json files and raw benchmark logs]*
-
-- `benchmark_results_full.csv`
-- `solution_logs/`
-- `run_configuration.yaml`
-
----
-
-## Data Collection Methodology
-
-All metrics collected using:
-- Custom benchmark harness v1.0
-- Automatic token counting via provider APIs
-- Manual inspection of solution.json for intermediary metrics
-- Each task run with 3 seeds to ensure reproducibility
-
-*Report generated: YYYY-MM-DD*

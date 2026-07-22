@@ -616,66 +616,6 @@ def edit_file_at(
         }
 
 
-# @mcp.tool()
-# def search_function_or_class_definition_in_code(name: str) -> str | None:
-#     """
-#     Find the definition of a function or class in Python files.
-
-#     Args:
-#         name: The name of the function or class to find
-#         name must be the bare function or class name,
-#         e.g. __add__, not a qualified path like ClassName.method_name.
-
-#     Returns:
-#         Formatted string with definitions following the format:
-#         /absolute/path/to/file.py:<line_number> <line_content>
-#         Returns None if no definition is found.
-#     """
-#     if not name:
-#         return None
-#     search_dir = cwd
-#     results = []
-#     patterns = [
-#         # Function definitions
-#         re.compile(
-#             rf'^\s*(?:async\s+)?def\s+{re.escape(name)}\s*\(', re.MULTILINE),
-#         # Class definitions
-#         re.compile(rf'^\s*class\s+{re.escape(name)}\s*[:\(]', re.MULTILINE),
-#     ]
-#     try:
-#         # Walk through directory
-#         for root, dirs, files in os.walk(search_dir):
-#             # Skip common exclusions
-#             dirs[:] = [d for d in dirs if not d.startswith('.') and d not in
-#                        ['node_modules', '__pycache__', 'venv', 'env', '.git',
-#                        'dist', 'build', '.pytest_cache', 'mypy_cache']]
-#             for file in files:
-#                 # Only process Python files
-#                 if not file.endswith('.py'):
-#                     continue
-#                 filepath = os.path.join(root, file)
-#                 abs_path = os.path.abspath(filepath)
-#                 try:
-#                     with open(filepath, 'r',
-#                               encoding='utf-8', errors='ignore') as f:
-#                         lines = f.readlines()
-#                     # Search each line for definition
-#                     for i, line in enumerate(lines, 1):
-#                         for pattern in patterns:
-#                             if pattern.search(line):
-#                                 results.append(
-#                                     f"{abs_path}:{i} {line.rstrip()}")
-#                                 break  # Only add once per line
-#                 except (UnicodeDecodeError, PermissionError, OSError):
-#                     continue
-#         if not results:
-#             return None
-#         return '\n'.join(results)
-#     except Exception as e:
-#         print(f"Search error: {type(e).__name__}: {str(e)}")
-#         return None
-
-
 @mcp.tool()
 def search_function_or_class_definition_in_code(name: str) -> str:
     """

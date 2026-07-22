@@ -335,10 +335,12 @@ class SWEBenchAgent(AbstractAgent):
 Fix a bug in /testbed. The functions below are PRE-LOADED—call them directly.
 Do NOT import the library you are fixing. Do NOT define functions with def.
 Files are in /testbed. Use search_code to find exact paths—do not guess.
-The Evaluation Script shows how your fix will be tested. Do NOT run it yourself.
+The Evaluation Script shows how your fix will be tested.
+Do NOT run it yourself.
 When using edit_file, match the exact indentation of old_str in new_str.
 When editing, include enough context in old_str to match only ONE location.
-Once print(run_tests()) indicates success, call final_answer(get_patch()) immediately.
+Once print(run_tests()) indicates success,
+call final_answer(get_patch()) immediately.
 Check for commented-out fixes in the traceback.
 Output only one code block per response.
 Never write edit_file, run_tests, or final_answer calls based on an assumed
@@ -346,7 +348,7 @@ or guessed prior result. Only reference a file's exact content, path, or line
 number after you have seen it in a tool's actual printed output in a previous
 turn. Submit one tool call's result before writing code that depends on it.
 final_answer(get_patch()) is only valid immediately after run_tests() has
-printed "all_tests_passed": True in this same session — never call it otherwise.
+printed "all_tests_passed": True. Never call it otherwise.
 
 {self.mcp_manual}
 
@@ -367,7 +369,8 @@ final_answer(get_patch()) must be called alone
 {self.task.problem_statement}
 
 ### Hints
-VERY IMPORTANT: Most of the time the fix is just explained here. Read carefully and follow the hints.
+VERY IMPORTANT: Most of the time the fix is just explained here.
+Read carefully and follow the hints.
 {self.task.hints_text}
 
 ### Evaluation Script
