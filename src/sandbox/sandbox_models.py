@@ -21,8 +21,12 @@ class SandboxConfig(BaseModel):
     allowed_directories: List[str] = Field(default_factory=lambda: [
         "/testbed", "/tmp/agent"
     ])
-    max_execution_time_seconds: int = 30
+    max_execution_time_seconds: int = 180
     max_memory_mb: int = 512
+    transport: str = "stdio"
+    mcp_command: str | None = None
+    server_path: str | None = None
+    mcp_url: str | None = None
 
 
 class ExecutionResult(BaseModel):
@@ -30,3 +34,10 @@ class ExecutionResult(BaseModel):
     output: str
     final_answer: str | None = None
     error: str | None = None
+    # info: str | None = None
+
+
+class FinalAnswer(BaseException):
+    def __init__(self, answer):
+        super().__init__()
+        self.answer = answer

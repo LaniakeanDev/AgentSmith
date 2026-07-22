@@ -1,0 +1,494 @@
+# MBPP Code Agent
+
+You are an autonomous coding agent solving Python programming problems. Your task is to write correct Python code that passes all test assertions.
+
+## 🎯 Problem Format
+
+Each problem provides:
+- **text**: A description of what the function should do
+- **task_id**: Unique identifier for the problem
+- **test_list**: List of assert statements your code must pass
+- **test_setup_code**: Optional setup code (usually empty)
+- **challenge_test_list**: Additional hidden tests (ignore these)
+
+## 🧠 Reasoning Loop
+
+Follow this exact structure in each response:
+
+### Thought
+Analyze the problem, explain your approach, identify edge cases, and plan your solution.
+
+### Code
+Write your Python solution inside triple backticks with python tag:
+```python
+def function_name(params):
+    # implementation
+    pass
+```
+
+### Observation
+After running tests, analyze the results and plan next steps.
+
+## 🔧 Available Tools
+
+You can use these functions in your code:
+
+1. **run_tests()** - Execute all test assertions
+2. **run_test_case(index)** - Run a specific test by index
+3. **final_answer(code)** - Submit your final solution
+   - Pass your complete function code as a string
+   - Example: `final_answer("def find_rect_num(n): return n*(n+1)")`
+
+## 📋 Example Task
+
+```json
+{
+  "text": "Write a function to find the n-th rectangular number.",
+  "code": "[this is what you have to find out]",
+  "task_id": 35,
+  "test_setup_code": "",
+  "test_list": [
+    "assert find_rect_num(4) == 20",
+    "assert find_rect_num(5) == 30",
+    "assert find_rect_num(6) == 42"
+  ],
+  "challenge_test_list": []
+}
+```
+
+## 💡 Solution Strategy
+
+1. **Understand the problem** from the `text` field
+2. **Identify the function name** (usually in the test assertions)
+3. **Write the function** to pass all test cases
+4. **Test your solution** using `run_tests()`
+5. **Submit** with `final_answer()` when all tests pass
+
+## ✅ Quality Checklist
+
+Before submitting, ensure:
+- [ ] Function name matches the test assertions
+- [ ] All test_list assertions pass
+- [ ] Edge cases are handled
+- [ ] Code is clean and efficient
+
+## 🚫 Common Mistakes
+
+1. **Wrong function name** - Must match what tests call
+2. **Wrong parameters** - Check what tests pass as arguments
+3. **Not handling edge cases** - Empty inputs, boundaries, etc.
+4. **Type mismatches** - Returning wrong type
+5. **Syntax errors** - Missing colons, parentheses
+
+## 📝 Current Task
+
+```json
+{task_json}
+```
+
+## 🔄 Previous Attempts
+
+{iteration_history}
+
+---
+Follow the Thought → Code → Observation pattern to solve this task.
+```
+
+## 🔧 Simplified Prompt Generator
+
+```python
+import json
+from typing import Dict, List, Optional
+
+class MBPPPromptGenerator:
+    """Simplified prompt generator for MBPP tasks."""
+    
+    def __init__(self):
+        self.system_prompt = """You are an autonomous coding agent solving MBPP problems.
+
+Your goal: Write Python code that passes all test assertions.
+
+Follow this pattern in each response:
+1. **Thought**: Analyze the problem and plan your approach
+2. **Code**: Write your solution in a Python code block
+3. **Observation**: After test results, analyze and improve
+
+Available tools:
+- run_tests(): Run all test assertions
+- run_test_case(index): Run a specific test
+- final_answer(code): Submit your final solution
+
+Remember: The function name MUST match what's used in the test assertions.
+"""
+    
+    def generate_prompt(self, task: Dict, iteration: int = 0, 
+                       history: Optional[List[Dict]] = None) -> str:
+        """Generate the prompt for a specific task."""
+        
+        # Format task as JSON for clarity
+        task_json = json.dumps(task, indent=2)
+        
+        # Format history
+        history_text = self._format_history(history) if history else "No previous attempts."
+        
+        # Determine iteration guidance
+        guidance = ""
+        if iteration == 0:
+            guidance = "First iteration: Focus on understanding the problem and writing a basic solution."
+        elif iteration == 1:
+            guidance = "Second iteration: Review test failures and refine your solution."
+        elif iteration >= 3:
+            guidance = "Multiple iterations: Consider if you're overcomplicating the solution."
+        
+        prompt = f"""{self.system_prompt}
+
+## 📋 Current Task
+
+```json
+{task_json}
+```
+
+## 🔄 Iteration History
+
+{history_text}
+
+## 🎯 Status
+
+Current iteration: {iteration + 1}
+{guidance}
+
+---
+### Thought
+[Analyze the problem, identify the function name and what it should do]
+
+### Code
+```python
+[Write your solution here]
+```
+
+### Observation
+[Results will appear here after test execution]
+---"""
+        
+        return prompt
+    
+    def _format_history(self, history: List[Dict]) -> str:
+        """Format iteration history."""
+        if not history:
+            return "No previous attempts."
+        
+        formatted = []
+        for i, entry in enumerate(history):
+            formatted.append(f"""
+### Attempt {i + 1}
+
+**Code**:
+```python
+{entry.get('code', '')}
+```
+
+**Results**:
+```
+{entry.get('results', '')}
+```
+
+**Analysis**:
+{entry.get('analysis', 'No analysis provided')}
+""")
+        
+        return "\n".join(formatted)
+    
+    def generate_feedback_prompt(self, task: Dict, code: str, 
+                                 results: str, iteration: int) -> str:
+        """Generate feedback prompt after test execution."""
+        
+        return f"""
+## 🔍 Test Results
+
+### Your Code
+```python
+{code}
+```
+
+### Results
+```
+{results}
+```
+
+## 💡 Analysis Required
+
+Based on the results:
+1. Which assertions failed?
+2. What errors occurred?
+3. What needs to be fixed?
+
+## 🎯 Next Steps
+
+Provide your analysis and updated solution.
+
+---
+**Iteration**: {iteration + 1}
+**Status**: Need to fix failing tests
+---
+### Thought
+[Analyze what went wrong]
+
+### Code
+[Write improved solution]
+
+### Observation
+[Will appear after next test run]
+"""
+    
+    def generate_final_prompt(self, task: Dict, solution_code: str) -> str:
+        """Generate prompt for final submission."""
+        
+        return f"""
+## ✅ Ready to Submit
+
+### Your Solution
+```python
+{solution_code}
+```
+
+### Verification
+Double-check:
+- [ ] Function name matches tests (e.g., `find_rect_num`)
+- [ ] All test assertions pass
+- [ ] Code handles edge cases
+
+### Submit
+```python
+final_answer({repr(solution_code)})
+```
+
+## 📝 Final Check
+
+Your solution should be a complete function that can be imported and tested with:
+```python
+{solution_code}
+
+# Test it:
+{task.get('test_list', ['No tests provided'])}
+```
+
+Ready to submit with final_answer().
+"""
+    
+    def parse_response(self, response: str) -> Dict[str, any]:
+        """Parse LLM response to extract code and analysis."""
+        parsed = {
+            "code": None,
+            "thought": "",
+            "analysis": "",
+            "has_final_answer": False
+        }
+        
+        # Extract thought section
+        if "Thought" in response:
+            thought_start = response.find("Thought")
+            code_start = response.find("Code")
+            if thought_start != -1 and code_start != -1:
+                parsed["thought"] = response[thought_start:code_start].strip()
+        
+        # Extract code block
+        if "```python" in response:
+            code_start = response.find("```python") + 10
+            code_end = response.find("```", code_start)
+            if code_end != -1:
+                parsed["code"] = response[code_start:code_end].strip()
+        elif "```" in response:
+            # Handle code blocks without language specifier
+            code_start = response.find("```") + 3
+            code_end = response.find("```", code_start)
+            if code_end != -1:
+                parsed["code"] = response[code_start:code_end].strip()
+        
+        # Check for final_answer
+        if "final_answer" in response:
+            parsed["has_final_answer"] = True
+            # Extract code from final_answer
+            if "final_answer(" in response:
+                start = response.find("final_answer(") + 13
+                end = response.find(")", start)
+                if end != -1:
+                    code = response[start:end].strip()
+                    # Remove quotes
+                    if code.startswith('"') or code.startswith("'"):
+                        code = code[1:-1]
+                    parsed["code"] = code
+        
+        return parsed
+    
+    def extract_function_name(self, task: Dict) -> Optional[str]:
+        """Extract function name from test assertions."""
+        test_list = task.get('test_list', [])
+        for test in test_list:
+            if 'assert' in test:
+                # Extract function name from assert statement
+                # Example: "assert find_rect_num(4) == 20" -> "find_rect_num"
+                import re
+                match = re.search(r'assert\s+(\w+)\(', test)
+                if match:
+                    return match.group(1)
+        return None
+
+# Example usage
+def create_prompt_for_task(task_data: Dict) -> str:
+    """Create a prompt for the agent from task data."""
+    generator = MBPPPromptGenerator()
+    
+    # Try to extract function name for hints
+    func_name = generator.extract_function_name(task_data)
+    if func_name:
+        # Add function name hint to task
+        task_data['function_name'] = func_name
+    
+    return generator.generate_prompt(task_data)
+```
+
+## 💡 Example Usage with Your Task
+
+```python
+# Your task data
+task = {
+    "text": "Write a function to find the n-th rectangular number.",
+    "code": "def find_rect_num(n):\n  return n*(n + 1)",
+    "task_id": 35,
+    "test_setup_code": "",
+    "test_list": [
+        "assert find_rect_num(4) == 20",
+        "assert find_rect_num(5) == 30",
+        "assert find_rect_num(6) == 42"
+    ],
+    "challenge_test_list": []
+}
+
+# Generate prompt
+generator = MBPPPromptGenerator()
+prompt = generator.generate_prompt(task)
+
+print(prompt)
+```
+
+This would output something like:
+
+```markdown
+You are an autonomous coding agent solving MBPP problems.
+
+Your goal: Write Python code that passes all test assertions.
+
+Follow this pattern in each response:
+1. **Thought**: Analyze the problem and plan your approach
+2. **Code**: Write your solution in a Python code block
+3. **Observation**: After test results, analyze and improve
+
+Available tools:
+- run_tests(): Run all test assertions
+- run_test_case(index): Run a specific test
+- final_answer(code): Submit your final solution
+
+Remember: The function name MUST match what's used in the test assertions.
+
+## 📋 Current Task
+
+```json
+{
+  "text": "Write a function to find the n-th rectangular number.",
+  "code": "def find_rect_num(n):\n  return n*(n + 1)",
+  "task_id": 35,
+  "test_setup_code": "",
+  "test_list": [
+    "assert find_rect_num(4) == 20",
+    "assert find_rect_num(5) == 30",
+    "assert find_rect_num(6) == 42"
+  ],
+  "challenge_test_list": []
+}
+```
+
+## 🔄 Iteration History
+
+No previous attempts.
+
+## 🎯 Status
+
+Current iteration: 1
+First iteration: Focus on understanding the problem and writing a basic solution.
+
+---
+### Thought
+[Analyze the problem, identify the function name and what it should do]
+
+### Code
+```python
+[Write your solution here]
+```
+
+### Observation
+[Results will appear here after test execution]
+---
+```
+
+## 🎯 Key Differences from Previous Prompt
+
+1. **Simpler Task Structure**: The LLM only needs to understand `text`, `test_list`, and function name
+2. **Direct Assertions**: Tests are simple assert statements, not complex test suites
+3. **Function Name Extraction**: Can be derived from test assertions
+4. **Cleaner Feedback**: Less complex analysis needed
+5. **Straightforward Solutions**: Usually single-function solutions
+
+## 🔧 Agent Loop Integration
+
+```python
+def agent_loop_for_mbpp(task: Dict, model, max_iterations: int = 5):
+    """Simple agent loop for MBPP tasks."""
+    
+    generator = MBPPPromptGenerator()
+    history = []
+    
+    for iteration in range(max_iterations):
+        # Generate prompt
+        if iteration == 0:
+            prompt = generator.generate_prompt(task)
+        else:
+            # Use feedback prompt based on previous results
+            last_attempt = history[-1]
+            prompt = generator.generate_feedback_prompt(
+                task, 
+                last_attempt['code'], 
+                last_attempt['results'],
+                iteration
+            )
+        
+        # Get LLM response
+        response = model.generate(prompt)
+        
+        # Parse response
+        parsed = generator.parse_response(response)
+        
+        if parsed['has_final_answer']:
+            # Submit final answer
+            return parsed['code']
+        
+        if parsed['code']:
+            # Execute code and get results
+            results = execute_in_sandbox(parsed['code'], task['test_list'])
+            
+            # Store in history
+            history.append({
+                'code': parsed['code'],
+                'results': results,
+                'analysis': parsed.get('thought', '')
+            })
+            
+            # Check if all tests passed
+            if all_passed(results):
+                # Submit with final_answer
+                final_prompt = generator.generate_final_prompt(task, parsed['code'])
+                final_response = model.generate(final_prompt)
+                return parsed['code']
+    
+    # Max iterations reached, return best attempt
+    return history[-1]['code'] if history else None
+```

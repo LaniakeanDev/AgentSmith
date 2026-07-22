@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from typing import List, Optional
-from time import datetime
+from datetime import datetime
 
 
 class MBPPTaskInput(BaseModel):
@@ -25,6 +25,7 @@ class StepMetrics(BaseModel):
     sandbox_output: str
     retries: int
     timestamp: str = Field(default_factory=lambda: datetime.now().isoformat())
+    prompt: str
 
 
 class SolutionOutput(BaseModel):

@@ -1,10 +1,17 @@
 [project]
 name = "agent_smith"
-requires-python = ">=3.13"
+requires-python = "~=3.10.0"
 version = "0.1.0"
 dependencies = [
     "pydantic>=2.13.4",
     "fire",
+    "mcp[cli]>=1.28.0",
+    "requests>=2.34.2",
+    "python-dotenv>=1.2.2",
+    "groq>=1.5.0",
+    "cerebras>=0.0.1",
+    "google-genai>=2.10.0",
+    "aiohttp>=3.14.1",
 ]
 
 [project.scripts]
